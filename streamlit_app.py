@@ -1,9 +1,9 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Pixel Farm v3", page_icon="🌾", layout="wide")
-st.title("🌾 Pixel Farm v3 - Klik-Klik!")
-st.caption("**Klik tile** buat kerjakan • **Drag** buat banyak tile • **1/2/3/4** pilih tool • **WASD** jalan")
+st.set_page_config(page_title="Pixel Farm v4", page_icon="🌾", layout="wide")
+st.title("🌾 Pixel Farm v4 - Sound & Toggle Tool")
+st.caption("**Klik tile** buat kerja • **Drag** buat banyak • **1/2/3/4** pilih tool (**tekan lagi = unequip**) • **M** mute")
 
 game_html = """
 <!DOCTYPE html>
@@ -40,6 +40,7 @@ game_html = """
     cursor:pointer; border-radius:4px;
     user-select:none;
     transition:all 0.1s;
+    position:relative;
   }
   .tool:hover {
     background:rgba(40,40,80,0.9);
@@ -56,6 +57,14 @@ game_html = """
     color:#888; font-size:11px; margin-left:4px;
   }
   .tool.active .key { color:#ffed4a; }
+  .tool.active::after {
+    content:'✓';
+    position:absolute; top:-8px; right:-8px;
+    background:#ffed4a; color:#000;
+    width:18px; height:18px; border-radius:50%;
+    font-size:12px; line-height:18px; text-align:center;
+    font-weight:bold;
+  }
   #toast {
     position:absolute; top:80px; left:50%; transform:translateX(-50%);
     background:rgba(0,0,0,0.9); border:2px solid #ffed4a;
@@ -63,6 +72,12 @@ game_html = """
     display:none; text-shadow:0 0 5px #ffed4a;
     pointer-events:none;
   }
+  #muteHint {
+    position:absolute; bottom:10px; right:10px;
+    color:#888; font-size:12px;
+    text-shadow:0 0 3px #000;
+  }
+  #muteHint.muted { color:#f44; }
 </style>
 </head>
 <body>
@@ -72,28 +87,193 @@ game_html = """
   <span style="font-size:12px;color:#0a0">Tekan <b style="color:#ffed4a">J</b> = jual semua</span>
 </div>
 <div id="toolbar">
-  <div class="tool active" data-tool="hoe">🪓 Hoe <span class="key">[1]</span></div>
+  <div class="tool" data-tool="hoe">🪓 Hoe <span class="key">[1]</span></div>
   <div class="tool" data-tool="seed">🌱 Seed <span class="key">[2]</span></div>
   <div class="tool" data-tool="water">💧 Water <span class="key">[3]</span></div>
   <div class="tool" data-tool="harvest">🌾 Harvest <span class="key">[4]</span></div>
 </div>
 <div id="toast"></div>
+<div id="muteHint">🔊 M = mute | Klik dulu canvas biar ada suara</div>
 <div id="wrap">
   <canvas id="game" width="720" height="520"></canvas>
 </div>
 
 <script>
+// ==== AUDIO ENGINE (Web Audio API - no external files!) ====
+let audioCtx = null;
+let musicGain = null;
+let sfxGain = null;
+let musicPlaying = false;
+let muted = false;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  musicGain = audioCtx.createGain();
+  musicGain.gain.value = 0.08; // volume musik rendah
+  musicGain.connect(audioCtx.destination);
+  sfxGain = audioCtx.createGain();
+  sfxGain.gain.value = 0.15;
+  sfxGain.connect(audioCtx.destination);
+  startMusic();
+}
+
+// ==== SOUND EFFECTS ====
+function playTone(freq, duration, type='square', vol=1) {
+  if (!audioCtx || muted) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.value = 0.001;
+  gain.gain.exponentialRampToValueAtTime(0.15 * vol, audioCtx.currentTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(sfxGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function sfxHoe() {
+  // Suara cangkul - rendah & berdebar
+  playTone(120, 0.15, 'sawtooth', 1);
+  setTimeout(() => playTone(90, 0.1, 'sawtooth', 0.8), 30);
+}
+
+function sfxSeed() {
+  // Suara tanam - "pop"
+  playTone(600, 0.08, 'sine', 1);
+  setTimeout(() => playTone(800, 0.06, 'sine', 0.7), 40);
+}
+
+function sfxWater() {
+  // Suara air - descending sweep
+  playTone(1000, 0.15, 'sine', 1);
+  setTimeout(() => playTone(700, 0.1, 'sine', 0.8), 50);
+  setTimeout(() => playTone(500, 0.08, 'sine', 0.6), 100);
+}
+
+function sfxHarvest() {
+  // Suara panen - arpeggio ceria
+  playTone(523, 0.08, 'square', 1); // C5
+  setTimeout(() => playTone(659, 0.08, 'square', 1), 60); // E5
+  setTimeout(() => playTone(784, 0.12, 'square', 1), 120); // G5
+}
+
+function sfxSell() {
+  // Suara jual - coin (Mario style)
+  playTone(988, 0.06, 'square', 1); // B5
+  setTimeout(() => playTone(1319, 0.15, 'square', 1), 60); // E6
+}
+
+function sfxError() {
+  playTone(200, 0.15, 'sawtooth', 1);
+}
+
+function sfxClick() {
+  playTone(1200, 0.03, 'square', 0.5);
+}
+
+// ==== CHIPTUNE BGM ====
+// Melodi sederhana + bassline, loop
+const melody = [
+  // Bar 1
+  {n: 'C5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'G5', d: 0.15}, {n: 'E5', d: 0.15},
+  // Bar 2
+  {n: 'A4', d: 0.15}, {n: 'C5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'C5', d: 0.15},
+  // Bar 3
+  {n: 'F4', d: 0.15}, {n: 'A4', d: 0.15}, {n: 'C5', d: 0.15}, {n: 'A4', d: 0.15},
+  // Bar 4
+  {n: 'G4', d: 0.15}, {n: 'B4', d: 0.15}, {n: 'D5', d: 0.15}, {n: 'B4', d: 0.15},
+  // Bar 5 (repeat bar 1)
+  {n: 'C5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'G5', d: 0.15}, {n: 'C6', d: 0.15},
+  // Bar 6
+  {n: 'A5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'C5', d: 0.3},
+  // Bar 7
+  {n: 'F5', d: 0.15}, {n: 'C5', d: 0.15}, {n: 'A4', d: 0.3},
+  // Bar 8
+  {n: 'G5', d: 0.15}, {n: 'D5', d: 0.15}, {n: 'B4', d: 0.3},
+];
+
+const bass = [
+  {n: 'C3', d: 0.3}, {n: 'C3', d: 0.3}, {n: 'A2', d: 0.3}, {n: 'A2', d: 0.3},
+  {n: 'F2', d: 0.3}, {n: 'F2', d: 0.3}, {n: 'G2', d: 0.3}, {n: 'G2', d: 0.3},
+  {n: 'C3', d: 0.3}, {n: 'C3', d: 0.3}, {n: 'A2', d: 0.3}, {n: 'A2', d: 0.3},
+  {n: 'F2', d: 0.3}, {n: 'F2', d: 0.3}, {n: 'G2', d: 0.3}, {n: 'G2', d: 0.3},
+];
+
+const noteFreq = {
+  'A2':110, 'B2':123.47, 'C3':130.81, 'D3':146.83, 'E3':164.81, 'F3':174.61, 'G3':196,
+  'A3':220, 'B3':246.94, 'C4':261.63, 'D4':293.66, 'E4':329.63, 'F4':349.23, 'G4':392,
+  'A4':440, 'B4':493.88, 'C5':523.25, 'D5':587.33, 'E5':659.25, 'F5':698.46, 'G5':783.99,
+  'A5':880, 'B5':987.77, 'C6':1046.50
+};
+
+function scheduleNote(freq, startTime, duration, type, vol) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.exponentialRampToValueAtTime(vol, startTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration - 0.02);
+  osc.connect(gain);
+  gain.connect(musicGain);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+let musicLoopTimer = null;
+let musicStartTime = 0;
+
+function startMusic() {
+  if (musicPlaying || !audioCtx) return;
+  musicPlaying = true;
+  musicStartTime = audioCtx.currentTime + 0.1;
+  playMusicLoop();
+}
+
+function playMusicLoop() {
+  if (!audioCtx || !musicPlaying) return;
+
+  const start = audioCtx.currentTime + 0.05;
+
+  // Schedule melody
+  let t = start;
+  for (const note of melody) {
+    if (noteFreq[note.n]) {
+      scheduleNote(noteFreq[note.n], t, note.d * 0.9, 'square', 0.4);
+    }
+    t += note.d;
+  }
+  const melodyDuration = t - start;
+
+  // Schedule bass
+  let bt = start;
+  for (const note of bass) {
+    if (noteFreq[note.n]) {
+      scheduleNote(noteFreq[note.n], bt, note.d * 0.9, 'triangle', 0.6);
+    }
+    bt += note.d;
+  }
+
+  // Schedule next loop
+  const loopDuration = Math.max(melodyDuration, bt - start);
+  musicLoopTimer = setTimeout(() => {
+    if (musicPlaying) playMusicLoop();
+  }, loopDuration * 1000);
+}
+
+// ==== MAIN GAME ====
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
 const PX = 5;
 const TILE = 16;
-
-// ==== WORLD ====
 const WORLD_W = 30;
 const WORLD_H = 22;
-let world = [];
 
 const T_GRASS = 0;
 const T_PATH = 1;
@@ -102,6 +282,7 @@ const T_TREE = 3;
 const T_FARMLAND = 4;
 const T_CROP = 5;
 
+let world = [];
 function generateWorld() {
   world = [];
   for (let y=0; y<WORLD_H; y++) {
@@ -114,37 +295,26 @@ function generateWorld() {
     }
     world.push(row);
   }
-  // Area farm start (bersih, tengah-bawah)
   for (let y=WORLD_H-6; y<WORLD_H-2; y++)
     for (let x=8; x<20; x++)
       world[y][x] = T_GRASS;
-
-  // Path horizontal
   for (let x=0; x<WORLD_W; x++) world[10][x] = T_PATH;
 }
 generateWorld();
 
 const crops = {};
 
-// ==== PLAYER ====
 const player = {
-  x: 12 * TILE,
-  y: 14 * TILE,
-  w: 10, h: 14,
-  speed: 1.6,
-  dir: 'down',
-  animTimer: 0,
-  walkFrame: 0,
+  x: 12 * TILE, y: 14 * TILE,
+  w: 10, h: 14, speed: 1.6,
+  dir: 'down', animTimer: 0, walkFrame: 0,
 };
 
-// ==== INVENTORY ====
 const inv = { gold: 0, wheat: 0 };
-
-// ==== TOOL ====
-let currentTool = 'hoe'; // hoe, seed, water, harvest
-
-// ==== CAMERA ====
 const camera = { x: 0, y: 0 };
+
+// tool: 'hoe' | 'seed' | 'water' | 'harvest' | null (unequip)
+let currentTool = null;
 
 // ==== MOUSE ====
 let mouse = { x: 0, y: 0, tx: 0, ty: 0, inside: false };
@@ -159,7 +329,6 @@ canvas.addEventListener('mousemove', e => {
   mouse.ty = Math.floor((mouse.y / PX + camera.y) / TILE);
   mouse.inside = true;
 
-  // Drag painting
   if (isMouseDown) {
     const tileKey = `${mouse.tx},${mouse.ty}`;
     if (tileKey !== lastDragTile) {
@@ -177,6 +346,10 @@ canvas.addEventListener('mouseleave', () => {
 
 canvas.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
+  // Init audio pada klik pertama
+  if (!audioCtx) initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
   isMouseDown = true;
   applyTool(mouse.tx, mouse.ty);
   lastDragTile = `${mouse.tx},${mouse.ty}`;
@@ -187,33 +360,72 @@ canvas.addEventListener('mouseup', () => {
   lastDragTile = null;
 });
 
-// Klik tool
+// ==== TOOLBAR (dengan toggle) ====
 document.querySelectorAll('.tool').forEach(el => {
   el.addEventListener('click', () => {
-    currentTool = el.dataset.tool;
-    document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
+    if (!audioCtx) initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    toggleTool(el.dataset.tool);
   });
 });
+
+function toggleTool(tool) {
+  if (currentTool === tool) {
+    // UNEQUIP
+    currentTool = null;
+    showToast('🚫 Tool dilepas', '#888');
+  } else {
+    currentTool = tool;
+    const names = { hoe: '🪓 Hoe', seed: '🌱 Seed', water: '💧 Water', harvest: '🌾 Harvest' };
+    showToast(`${names[tool]} dipilih`, '#ffed4a');
+    sfxClick();
+  }
+  updateToolbarUI();
+}
+
+function updateToolbarUI() {
+  document.querySelectorAll('.tool').forEach(el => {
+    el.classList.toggle('active', el.dataset.tool === currentTool);
+  });
+}
 
 // ==== KEYBOARD ====
 const keys = {};
 document.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
-  if (e.key === '1') selectTool('hoe');
-  if (e.key === '2') selectTool('seed');
-  if (e.key === '3') selectTool('water');
-  if (e.key === '4') selectTool('harvest');
+
+  // Toggle tool dengan angka
+  if (e.key === '1') toggleTool('hoe');
+  if (e.key === '2') toggleTool('seed');
+  if (e.key === '3') toggleTool('water');
+  if (e.key === '4') toggleTool('harvest');
   if (e.key === 'j' || e.key === 'J') sellWheat();
+
+  // Mute toggle
+  if (e.key === 'm' || e.key === 'M') toggleMute();
+
   if (['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key)) e.preventDefault();
 });
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-function selectTool(t) {
-  currentTool = t;
-  document.querySelectorAll('.tool').forEach(el => {
-    el.classList.toggle('active', el.dataset.tool === t);
-  });
+function toggleMute() {
+  muted = !muted;
+  const hint = document.getElementById('muteHint');
+  if (muted) {
+    hint.textContent = '🔇 MUTED | M = unmute';
+    hint.classList.add('muted');
+    if (audioCtx) {
+      musicGain.gain.value = 0;
+      sfxGain.gain.value = 0;
+    }
+  } else {
+    hint.textContent = '🔊 M = mute';
+    hint.classList.remove('muted');
+    if (audioCtx) {
+      musicGain.gain.value = 0.08;
+      sfxGain.gain.value = 0.15;
+    }
+  }
 }
 
 // ==== TOAST ====
@@ -231,6 +443,17 @@ function showToast(msg, color='#ffed4a') {
 // ==== APPLY TOOL ====
 function applyTool(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
+
+  // Kalau nggak ada tool = nggak bisa apa-apa
+  if (!currentTool) {
+    if (world[ty][tx] === T_CROP && crops[`${tx},${ty}`] && crops[`${tx},${ty}`].stage >= 3) {
+      showToast('💡 Pilih tool Harvest dulu [4]', '#ffed4a');
+    } else {
+      showToast('💡 Pilih tool dulu [1-4]', '#ffed4a');
+    }
+    return;
+  }
+
   const t = world[ty][tx];
   const key = `${tx},${ty}`;
 
@@ -238,37 +461,53 @@ function applyTool(tx, ty) {
     if (t === T_GRASS) {
       world[ty][tx] = T_FARMLAND;
       crops[key] = { stage: -1 };
+      sfxHoe();
       showToast('🪓 Dicangkul!', '#a07040');
+    } else {
+      sfxError();
     }
   } else if (currentTool === 'seed') {
     if (t === T_FARMLAND) {
       world[ty][tx] = T_CROP;
       crops[key] = { stage: 0, watered: false, timer: 0 };
+      sfxSeed();
       showToast('🌱 Ditanam!', '#5aff5a');
+    } else {
+      sfxError();
     }
   } else if (currentTool === 'water') {
     if (t === T_CROP && crops[key] && crops[key].stage < 3) {
-      crops[key].watered = true;
-      showToast('💧 Disiram!', '#4a90e2');
+      if (!crops[key].watered) {
+        crops[key].watered = true;
+        sfxWater();
+        showToast('💧 Disiram!', '#4a90e2');
+      }
+    } else {
+      sfxError();
     }
   } else if (currentTool === 'harvest') {
     if (t === T_CROP && crops[key] && crops[key].stage >= 3) {
       inv.wheat++;
       world[ty][tx] = T_FARMLAND;
       crops[key] = { stage: -1 };
+      sfxHarvest();
       showToast('🌾 Panen! +1', '#ffed4a');
       updateHUD();
+    } else {
+      sfxError();
     }
   }
 }
 
 function sellWheat() {
   if (inv.wheat === 0) {
+    sfxError();
     showToast('❌ Nggak ada gandum', '#ff4444');
     return;
   }
   const earn = inv.wheat * 10;
   inv.gold += earn;
+  sfxSell();
   showToast(`🪙 +${earn} gold!`, '#ffed4a');
   inv.wheat = 0;
   updateHUD();
@@ -340,7 +579,6 @@ function update() {
   camera.x = Math.max(0, Math.min(WORLD_W*TILE - canvas.width/PX, camera.x));
   camera.y = Math.max(0, Math.min(WORLD_H*TILE - canvas.height/PX, camera.y));
 
-  // Update cursor tile (recalc karena camera berubah)
   if (mouse.inside) {
     mouse.tx = Math.floor((mouse.x / PX + camera.x) / TILE);
     mouse.ty = Math.floor((mouse.y / PX + camera.y) / TILE);
@@ -479,7 +717,6 @@ function drawHumanoid(x, y, dir, walkFrame, color) {
   artPx(x+7, legY+4, 2, 1, '#000');
 }
 
-// ==== DRAW CURSOR TILE HIGHLIGHT ====
 function drawCursorHighlight() {
   if (!mouse.inside) return;
   const tx = mouse.tx;
@@ -491,27 +728,48 @@ function drawCursorHighlight() {
   const px = Math.floor((wx - camera.x) * PX);
   const py = Math.floor((wy - camera.y) * PX);
 
-  // Warna berdasarkan tool & tile
-  let color = '#ffffff';
-  const t = world[ty][tx];
-  const key = `${tx},${ty}`;
+  // Kalau nggak ada tool, cursor abu-abu tipis
+  let color = '#444';
+  let alpha = 0.3;
 
-  if (currentTool === 'hoe' && t === T_GRASS) color = '#a07040';
-  else if (currentTool === 'seed' && t === T_FARMLAND) color = '#5aff5a';
-  else if (currentTool === 'water' && t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) color = '#4a90e2';
-  else if (currentTool === 'harvest' && t === T_CROP && crops[key] && crops[key].stage >= 3) color = '#ffed4a';
-  else color = '#666'; // nggak bisa dikerjakan
+  if (currentTool) {
+    const t = world[ty][tx];
+    const key = `${tx},${ty}`;
 
-  // Border
+    if (currentTool === 'hoe' && t === T_GRASS) { color = '#a07040'; alpha = 0.7; }
+    else if (currentTool === 'seed' && t === T_FARMLAND) { color = '#5aff5a'; alpha = 0.7; }
+    else if (currentTool === 'water' && t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) { color = '#4a90e2'; alpha = 0.7; }
+    else if (currentTool === 'harvest' && t === T_CROP && crops[key] && crops[key].stage >= 3) { color = '#ffed4a'; alpha = 0.9; }
+    else { color = '#666'; alpha = 0.4; }
+  }
+
   ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.globalAlpha = 0.8;
+  ctx.lineWidth = currentTool ? 3 : 2;
+  ctx.globalAlpha = alpha;
   ctx.strokeRect(px + 1, py + 1, TILE*PX - 2, TILE*PX - 2);
 
-  // Fill semi-transparan
-  ctx.globalAlpha = 0.2;
+  ctx.globalAlpha = alpha * 0.3;
   ctx.fillStyle = color;
   ctx.fillRect(px, py, TILE*PX, TILE*PX);
+
+  // Kalau tool aktif & valid, tampilkan emoji
+  if (currentTool) {
+    const t = world[ty][tx];
+    const key = `${tx},${ty}`;
+    let emoji = null;
+    if (currentTool === 'hoe' && t === T_GRASS) emoji = '🪓';
+    else if (currentTool === 'seed' && t === T_FARMLAND) emoji = '🌱';
+    else if (currentTool === 'water' && t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) emoji = '💧';
+    else if (currentTool === 'harvest' && t === T_CROP && crops[key] && crops[key].stage >= 3) emoji = '🌾';
+
+    if (emoji) {
+      ctx.globalAlpha = 0.85;
+      ctx.font = `${TILE * PX * 0.7}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, px + TILE*PX/2, py + TILE*PX/2);
+    }
+  }
 
   ctx.globalAlpha = 1;
 }
@@ -533,7 +791,6 @@ function draw() {
 
   drawCursorHighlight();
 
-  // Vignette
   const grad = ctx.createRadialGradient(
     canvas.width/2, canvas.height/2, 150,
     canvas.width/2, canvas.height/2, canvas.width
@@ -549,7 +806,15 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
+
+// Init audio pada interaction pertama (browser autoplay policy)
+document.body.addEventListener('click', () => {
+  if (!audioCtx) initAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}, { once: false });
+
 updateHUD();
+updateToolbarUI();
 loop();
 </script>
 </body>
