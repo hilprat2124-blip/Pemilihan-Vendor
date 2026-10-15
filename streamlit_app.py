@@ -1,258 +1,241 @@
 import streamlit as st
-import random
-import time
+import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Pokemon Mini", page_icon="🐾", layout="centered")
+st.set_page_config(page_title="Pixel Catcher", page_icon="🎮", layout="centered")
+st.title("🎮 Pixel Catcher")
+st.caption("← → atau A/D buat gerak. Tangkap kotak, hindari bom!")
 
-# ============ DATA POKEMON ============
-POKEDEX = {
-    "Charmander": {"emoji": "🔥", "type": "Api",  "hp": 39, "atk": 52, "moves": {"Cakar Api": 15, "Ember": 25, "Gigit": 18}},
-    "Squirtle":   {"emoji": "💧", "type": "Air",  "hp": 44, "atk": 48, "moves": {"Water Gun": 22, "Tackle": 15, "Bubble": 18}},
-    "Bulbasaur":  {"emoji": "🌿", "type": "Rumput","hp": 45, "atk": 49, "moves": {"Vine Whip": 20, "Tackle": 15, "Razor Leaf": 25}},
-    "Pikachu":    {"emoji": "⚡", "type": "Listrik","hp": 35, "atk": 55, "moves": {"Thunder Shock": 25, "Quick Attack": 18, "Tackle": 15}},
-    "Rattata":    {"emoji": "🐭", "type": "Normal", "hp": 30, "atk": 56, "moves": {"Tackle": 15, "Bite": 20, "Quick Attack": 18}},
-    "Pidgey":     {"emoji": "🐦", "type": "Terbang","hp": 40, "atk": 45, "moves": {"Peck": 18, "Gust": 20, "Tackle": 15}},
-    "Caterpie":   {"emoji": "🐛", "type": "Serangga","hp": 45, "atk": 30, "moves": {"Tackle": 15, "Bug Bite": 20}},
-    "Zubat":      {"emoji": "🦇", "type": "Terbang","hp": 40, "atk": 45, "moves": {"Leech Life": 20, "Bite": 18, "Gust": 15}},
+game_html = """
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { margin:0; background:#1a1a2e; font-family:monospace; }
+  canvas {
+    display:block; margin:0 auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    border: 4px solid #0f0;
+    box-shadow: 0 0 20px #0f0;
+  }
+  #hud {
+    text-align:center; color:#0f0; font-size:20px;
+    padding:10px; font-family:monospace;
+    text-shadow: 0 0 5px #0f0;
+  }
+</style>
+</head>
+<body>
+<div id="hud">SCORE: <span id="score">0</span> | LIVES: <span id="lives">❤❤❤</span></div>
+<canvas id="game" width="480" height="480"></canvas>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+const PIXEL = 4;  // ukuran 1 pixel "art"
+const W = canvas.width;
+const H = canvas.height;
+
+let keys = {};
+let score = 0;
+let lives = 3;
+let player = { x: W/2 - 24, y: H - 40, w: 48, h: 16, speed: 6 };
+let items = [];
+let particles = [];
+let stars = [];
+let spawnTimer = 0;
+let spawnInterval = 60;
+let gameOver = false;
+let frame = 0;
+
+// Bintang latar
+for (let i=0;i<40;i++){
+  stars.push({x:Math.random()*W, y:Math.random()*H, s:Math.random()*2+1});
 }
 
-WILD_POOL = ["Rattata", "Pidgey", "Caterpie", "Zubat"]
+// Input
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()]=true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()]=false);
 
-# ============ STATE INIT ============
-def init_game():
-    st.session_state.player = None
-    st.session_state.team = []
-    st.session_state.pokedex_caught = set()
-    st.session_state.mode = "starter"  # starter | explore | battle | win | lose
-    st.session_state.log = []
-    st.session_state.wild = None
-    st.session_state.balls = 5
-    st.session_state.steps = 0
+function drawPixel(x, y, size, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.floor(x/PIXEL)*PIXEL, Math.floor(y/PIXEL)*PIXEL, size, size);
+}
 
-if "player" not in st.session_state:
-    init_game()
+function drawPlayer() {
+  // Keranjang pixel
+  const x = player.x, y = player.y;
+  // Body
+  drawPixel(x, y+8, 48, '#8B4513');
+  // Atas
+  drawPixel(x, y+4, 48, '#A0522D');
+  // Garis-garis pixel
+  for (let i=0;i<48;i+=8){
+    drawPixel(x+i, y+8, 4, '#6B3410');
+    drawPixel(x+i, y+16, 4, '#6B3410');
+  }
+  // Rim highlight
+  drawPixel(x, y, 48, '#D2691E');
+}
 
-def log(msg):
-    st.session_state.log.append(msg)
-    st.session_state.log = st.session_state.log[-8:]
+function spawnItem() {
+  const isBomb = Math.random() < 0.25;
+  items.push({
+    x: Math.floor(Math.random() * (W-24) / PIXEL) * PIXEL,
+    y: -20,
+    w: 16,
+    h: 16,
+    vy: 2 + Math.random()*2,
+    type: isBomb ? 'bomb' : 'coin',
+  });
+}
 
-def spawn_wild():
-    name = random.choice(WILD_POOL)
-    base = POKEDEX[name]
-    level = random.randint(2, 8)
-    wild = {
-        "name": name, "level": level,
-        "hp_max": base["hp"] + level * 3,
-        "hp": base["hp"] + level * 3,
-        "atk": base["atk"] + level * 2,
-        "moves": base["moves"],
-        "emoji": base["emoji"],
-        "type": base["type"],
+function drawItem(it) {
+  if (it.type === 'coin') {
+    // Koin pixel emas
+    drawPixel(it.x, it.y, 16, '#FFD700');
+    drawPixel(it.x+4, it.y+4, 8, '#FFA500');
+    drawPixel(it.x+8, it.y+8, 4, '#FFF700');
+  } else {
+    // Bom pixel
+    drawPixel(it.x, it.y+4, 16, '#333');
+    drawPixel(it.x+4, it.y, 8, '#333');
+    drawPixel(it.x+6, it.y-4, 4, '#FF4500');
+    drawPixel(it.x+4, it.y+8, 4, '#666');
+    drawPixel(it.x+8, it.y+8, 4, '#666');
+  }
+}
+
+function addParticles(x, y, color) {
+  for (let i=0;i<10;i++){
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*6,
+      vy: (Math.random()-0.5)*6,
+      life: 20,
+      color
+    });
+  }
+}
+
+function update() {
+  if (gameOver) return;
+  frame++;
+
+  // Gerak player
+  if (keys['arrowleft'] || keys['a']) player.x -= player.speed;
+  if (keys['arrowright'] || keys['d']) player.x += player.speed;
+  player.x = Math.max(0, Math.min(W - player.w, player.x));
+
+  // Spawn item
+  spawnTimer++;
+  if (spawnTimer > spawnInterval) {
+    spawnItem();
+    spawnTimer = 0;
+    spawnInterval = Math.max(25, spawnInterval - 0.5);
+  }
+
+  // Update items
+  items.forEach(it => it.y += it.vy);
+  items = items.filter(it => it.y < H + 30);
+
+  // Collision
+  items.forEach(it => {
+    if (it.y + it.h > player.y &&
+        it.y < player.y + player.h &&
+        it.x + it.w > player.x &&
+        it.x < player.x + player.w) {
+      if (it.type === 'coin') {
+        score += 10;
+        addParticles(it.x+8, it.y+8, '#FFD700');
+      } else {
+        lives--;
+        addParticles(it.x+8, it.y+8, '#FF0000');
+        if (lives <= 0) gameOver = true;
+      }
+      it.y = H + 100; // hilang
     }
-    return wild
+  });
 
-# ============ HEADER ============
-st.title("🐾 Pokemon Mini Adventure")
-st.caption("Pilih starter, jelajahi rumput liar, tangkap & lawan Pokemon!")
+  // Particles
+  particles.forEach(p => { p.x+=p.vx; p.y+=p.vy; p.life--; p.vy+=0.2; });
+  particles = particles.filter(p => p.life > 0);
 
-# ============ SCREEN: PILIH STARTER ============
-if st.session_state.mode == "starter":
-    st.subheader("🎁 Pilih Pokemon Starter-mu!")
+  // Update HUD
+  document.getElementById('score').textContent = score;
+  document.getElementById('lives').textContent = '❤'.repeat(Math.max(0, lives));
+}
 
-    cols = st.columns(3)
-    starters = ["Charmander", "Squirtle", "Bulbasaur"]
-    for i, name in enumerate(starters):
-        p = POKEDEX[name]
-        with cols[i]:
-            st.markdown(f"### {p['emoji']} {name}")
-            st.write(f"**Tipe:** {p['type']}")
-            st.write(f"❤️ HP: {p['hp']}")
-            st.write(f"⚔️ ATK: {p['atk']}")
-            st.write("**Moves:**")
-            for mv, dmg in p["moves"].items():
-                st.write(f"- {mv} ({dmg})")
-            if st.button(f"Pilih {name}", key=f"pick_{name}", use_container_width=True):
-                st.session_state.player = {
-                    "name": name, "level": 5,
-                    "hp_max": p["hp"] + 15,
-                    "hp": p["hp"] + 15,
-                    "atk": p["atk"] + 10,
-                    "moves": p["moves"],
-                    "emoji": p["emoji"], "type": p["type"],
-                }
-                st.session_state.team = [st.session_state.player]
-                st.session_state.pokedex_caught.add(name)
-                st.session_state.mode = "explore"
-                log(f"✨ Kamu memilih {p['emoji']} {name}!")
-                st.rerun()
+function drawBackground() {
+  // Gradient gelap
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0, '#0a0a1e');
+  grad.addColorStop(1, '#1a1a3e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
 
-# ============ SCREEN: EXPLORE ============
-elif st.session_state.mode == "explore":
-    player = st.session_state.player
+  // Bintang pixel
+  stars.forEach(s => {
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.sin(frame*0.05 + s.x)*0.2})`;
+    ctx.fillRect(Math.floor(s.x/PIXEL)*PIXEL, Math.floor(s.y/PIXEL)*PIXEL, PIXEL, PIXEL);
+  });
 
-    # Kartu status
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        st.subheader(f"{player['emoji']} {player['name']} Lv.{player['level']}")
-        st.progress(player["hp"] / player["hp_max"],
-                    text=f"❤️ HP {player['hp']}/{player['hp_max']}")
-    with col2:
-        st.subheader("🎒 Inventory")
-        st.write(f"🔴 Pokeball: **{st.session_state.balls}**")
-        st.write(f"👣 Langkah: **{st.session_state.steps}**")
-        st.write(f"📖 Pokedex: **{len(st.session_state.pokedex_caught)}/{len(POKEDEX)}**")
+  // Lantai pixel
+  for (let i=0;i<W;i+=PIXEL*4){
+    ctx.fillStyle = i % (PIXEL*8) === 0 ? '#2a2a4e' : '#252545';
+    ctx.fillRect(i, H - PIXEL*2, PIXEL*4, PIXEL*2);
+  }
+}
 
-    st.divider()
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.fillRect(0, H/2 - 60, W, 120);
+  ctx.fillStyle = '#f00';
+  ctx.font = 'bold 32px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', W/2, H/2);
+  ctx.fillStyle = '#0f0';
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText('SCORE: ' + score, W/2, H/2 + 30);
+  ctx.fillText('Klik untuk main lagi', W/2, H/2 + 50);
+}
 
-    # Aksi
-    c1, c2, c3 = st.columns(3)
-    if c1.button("🌿 Jalan di Rumput", use_container_width=True):
-        st.session_state.steps += 1
-        if random.random() < 0.7:  # 70% ketemu
-            st.session_state.wild = spawn_wild()
-            st.session_state.mode = "battle"
-            log(f"⚠️ Wild {st.session_state.wild['emoji']} {st.session_state.wild['name']} muncul!")
-            st.rerun()
-        else:
-            log("🌾 Nggak ada apa-apa...")
-            st.rerun()
+function draw() {
+  drawBackground();
+  items.forEach(drawItem);
+  drawPlayer();
 
-    if c2.button("💊 Pakai Potion", use_container_width=True, disabled=player["hp"] >= player["hp_max"]):
-        heal = min(20, player["hp_max"] - player["hp"])
-        player["hp"] += heal
-        log(f"💊 Heal +{heal} HP!")
-        st.rerun()
+  // Particles pixel
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life/20;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(Math.floor(p.x/PIXEL)*PIXEL, Math.floor(p.y/PIXEL)*PIXEL, PIXEL, PIXEL);
+  });
+  ctx.globalAlpha = 1;
 
-    if c3.button("🔄 Reset Game", use_container_width=True):
-        init_game()
-        st.rerun()
+  if (gameOver) drawGameOver();
+}
 
-    # Pokedex mini
-    st.divider()
-    st.subheader("📖 Pokedex")
-    caught = st.session_state.pokedex_caught
-    cols = st.columns(len(POKEDEX))
-    for i, (name, data) in enumerate(POKEDEX.items()):
-        with cols[i]:
-            if name in caught:
-                st.markdown(f"<div style='text-align:center;font-size:30px'>{data['emoji']}</div>", unsafe_allow_html=True)
-                st.caption(f"**{name}**")
-            else:
-                st.markdown("<div style='text-align:center;font-size:30px;opacity:0.2'>❓</div>", unsafe_allow_html=True)
-                st.caption("???")
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
 
-    # Log
-    st.divider()
-    st.subheader("📜 Log")
-    for l in reversed(st.session_state.log):
-        st.write(l)
+canvas.addEventListener('click', () => {
+  if (gameOver) {
+    score = 0; lives = 3; items = []; particles = [];
+    player.x = W/2 - 24; gameOver = false;
+    spawnInterval = 60; spawnTimer = 0;
+  }
+});
 
-# ============ SCREEN: BATTLE ============
-elif st.session_state.mode == "battle":
-    player = st.session_state.player
-    wild = st.session_state.wild
+loop();
+</script>
+</body>
+</html>
+"""
 
-    # Tampilan Pokemon
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"### 🧑 Kamu")
-        st.markdown(f"<div style='font-size:60px'>{player['emoji']}</div>", unsafe_allow_html=True)
-        st.write(f"**{player['name']}** Lv.{player['level']}")
-        st.progress(player["hp"] / player["hp_max"], text=f"❤️ {player['hp']}/{player['hp_max']}")
-    with col2:
-        st.markdown("### 👹 Wild")
-        st.markdown(f"<div style='font-size:60px'>{wild['emoji']}</div>", unsafe_allow_html=True)
-        st.write(f"**{wild['name']}** Lv.{wild['level']}")
-        st.progress(wild["hp"] / wild["hp_max"], text=f"❤️ {wild['hp']}/{wild['hp_max']}")
-
-    st.divider()
-    st.subheader("⚔️ Pilih Gerakan")
-
-    move_cols = st.columns(len(player["moves"]))
-    for i, (mv, dmg) in enumerate(player["moves"].items()):
-        if move_cols[i].button(f"{mv}\n({dmg})", use_container_width=True):
-            # Player attack
-            dmg_dealt = dmg + random.randint(-3, 5)
-            wild["hp"] = max(0, wild["hp"] - dmg_dealt)
-            log(f"⚔️ {player['name']} pakai {mv}! -{dmg_dealt} HP")
-
-            if wild["hp"] <= 0:
-                log(f"🎉 {wild['name']} pingsan! Menang!")
-                player["level"] += 1
-                player["hp_max"] += 5
-                player["atk"] += 2
-                player["hp"] = min(player["hp_max"], player["hp"] + 10)
-                st.session_state.mode = "explore"
-                st.balloons()
-                st.rerun()
-
-            # Wild counter attack
-            wild_move = random.choice(list(wild["moves"].items()))
-            wild_dmg = wild_move[1] + random.randint(-2, 3)
-            player["hp"] = max(0, player["hp"] - wild_dmg)
-            log(f"👹 {wild['name']} pakai {wild_move[0]}! -{wild_dmg} HP")
-
-            if player["hp"] <= 0:
-                log("💀 Pokemon-mu pingsan...")
-                st.session_state.mode = "lose"
-                st.rerun()
-            st.rerun()
-
-    st.divider()
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button(f"🔴 Lempar Pokeball ({st.session_state.balls})",
-                     use_container_width=True,
-                     disabled=st.session_state.balls <= 0):
-            st.session_state.balls -= 1
-            # Chance tangkap = lebih tinggi kalau HP wild rendah
-            hp_ratio = wild["hp"] / wild["hp_max"]
-            catch_chance = 0.9 - hp_ratio * 0.6  # 30% - 90%
-            st.write(f"🎯 Chance: {catch_chance*100:.0f}%")
-            if random.random() < catch_chance:
-                log(f"✨ Berhasil menangkap {wild['name']}!")
-                st.session_state.pokedex_caught.add(wild["name"])
-                st.session_state.mode = "explore"
-                st.balloons()
-                time.sleep(0.5)
-                st.rerun()
-            else:
-                log(f"💨 {wild['name']} kabur dari Pokeball!")
-                # Wild counter
-                wild_move = random.choice(list(wild["moves"].items()))
-                wild_dmg = wild_move[1]
-                player["hp"] = max(0, player["hp"] - wild_dmg)
-                log(f"👹 {wild['name']} pakai {wild_move[0]}! -{wild_dmg} HP")
-                if player["hp"] <= 0:
-                    st.session_state.mode = "lose"
-                st.rerun()
-    with c2:
-        if st.button("🏃 Kabur", use_container_width=True):
-            if random.random() < 0.7:
-                log("🏃 Berhasil kabur!")
-                st.session_state.mode = "explore"
-            else:
-                log("❌ Gagal kabur!")
-                wild_move = random.choice(list(wild["moves"].items()))
-                wild_dmg = wild_move[1]
-                player["hp"] = max(0, player["hp"] - wild_dmg)
-                log(f"👹 {wild['name']} pakai {wild_move[0]}! -{wild_dmg} HP")
-                if player["hp"] <= 0:
-                    st.session_state.mode = "lose"
-            st.rerun()
-
-    # Log
-    st.divider()
-    st.subheader("📜 Log Pertarungan")
-    for l in reversed(st.session_state.log):
-        st.write(l)
-
-# ============ SCREEN: LOSE ============
-elif st.session_state.mode == "lose":
-    st.error("💀 Kamu kalah! Pokemon-mu pingsan...")
-    st.markdown("<div style='text-align:center;font-size:80px'>😵</div>", unsafe_allow_html=True)
-    st.write(f"📊 Total langkah: **{st.session_state.steps}**")
-    st.write(f"📖 Pokemon tertangkap: **{len(st.session_state.pokedex_caught)}**")
-    if st.button("🔄 Main Lagi", use_container_width=True):
-        init_game()
-        st.rerun()
+components.html(game_html, height=560)
