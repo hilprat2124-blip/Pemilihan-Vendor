@@ -1,9 +1,9 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Pixel Farm v4", page_icon="🌾", layout="wide")
-st.title("🌾 Pixel Farm v4 - Sound & Toggle Tool")
-st.caption("**Klik tile** buat kerja • **Drag** buat banyak • **1/2/3/4** pilih tool (**tekan lagi = unequip**) • **M** mute")
+st.set_page_config(page_title="Pixel Farm v5", page_icon="🌾", layout="wide")
+st.title("🌾 Pixel Farm v5 - Suara Gede!")
+st.caption("**Klik tile** buat kerja • **Drag** buat banyak • **1/2/3/4** pilih tool (tekan lagi = unequip) • **M** mute • **+/-** atur volume")
 
 game_html = """
 <!DOCTYPE html>
@@ -28,7 +28,7 @@ game_html = """
   #hud b { color:#ffed4a; text-shadow:0 0 8px #ffed4a; }
   #toolbar {
     position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-    display:flex; gap:8px;
+    display:flex; gap:8px; align-items:center;
     background:rgba(0,0,0,0.85); padding:8px;
     border:2px solid #0f0; border-radius:6px;
   }
@@ -65,6 +65,25 @@ game_html = """
     font-size:12px; line-height:18px; text-align:center;
     font-weight:bold;
   }
+  #volBox {
+    display:flex; align-items:center; gap:6px;
+    padding:0 8px; border-left:2px solid #444;
+    margin-left:4px;
+  }
+  #volBox span { color:#ffed4a; font-size:14px; }
+  #volSlider {
+    width:100px; cursor:pointer;
+    accent-color:#ffed4a;
+  }
+  #muteBtn {
+    background:rgba(20,20,40,0.9);
+    border:2px solid #444;
+    color:#ffed4a; font-family:monospace;
+    font-size:16px; padding:6px 10px;
+    cursor:pointer; border-radius:4px;
+  }
+  #muteBtn:hover { border-color:#ffed4a; }
+  #muteBtn.muted { color:#f44; border-color:#f44; }
   #toast {
     position:absolute; top:80px; left:50%; transform:translateX(-50%);
     background:rgba(0,0,0,0.9); border:2px solid #ffed4a;
@@ -72,12 +91,12 @@ game_html = """
     display:none; text-shadow:0 0 5px #ffed4a;
     pointer-events:none;
   }
-  #muteHint {
+  #hint {
     position:absolute; bottom:10px; right:10px;
-    color:#888; font-size:12px;
+    color:#888; font-size:11px;
     text-shadow:0 0 3px #000;
+    text-align:right; line-height:1.6;
   }
-  #muteHint.muted { color:#f44; }
 </style>
 </head>
 <body>
@@ -91,34 +110,55 @@ game_html = """
   <div class="tool" data-tool="seed">🌱 Seed <span class="key">[2]</span></div>
   <div class="tool" data-tool="water">💧 Water <span class="key">[3]</span></div>
   <div class="tool" data-tool="harvest">🌾 Harvest <span class="key">[4]</span></div>
+  <div id="volBox">
+    <span>🔊</span>
+    <input type="range" id="volSlider" min="0" max="100" value="80">
+    <span id="volValue">80%</span>
+    <button id="muteBtn">🔊</button>
+  </div>
 </div>
 <div id="toast"></div>
-<div id="muteHint">🔊 M = mute | Klik dulu canvas biar ada suara</div>
+<div id="hint">
+  M = mute • +/- = volume<br>
+  Klik canvas dulu biar ada suara
+</div>
 <div id="wrap">
   <canvas id="game" width="720" height="520"></canvas>
 </div>
 
 <script>
-// ==== AUDIO ENGINE (Web Audio API - no external files!) ====
+// ==== AUDIO ENGINE ====
 let audioCtx = null;
+let masterGain = null;
 let musicGain = null;
 let sfxGain = null;
 let musicPlaying = false;
 let muted = false;
+let masterVolume = 0.8; // 0-1
 
 function initAudio() {
   if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Master gain (volume global)
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = masterVolume;
+  masterGain.connect(audioCtx.destination);
+
+  // Musik channel (lebih gede: 0.25)
   musicGain = audioCtx.createGain();
-  musicGain.gain.value = 0.08; // volume musik rendah
-  musicGain.connect(audioCtx.destination);
+  musicGain.gain.value = 0.25;
+  musicGain.connect(masterGain);
+
+  // SFX channel (jauh lebih gede: 0.5)
   sfxGain = audioCtx.createGain();
-  sfxGain.gain.value = 0.15;
-  sfxGain.connect(audioCtx.destination);
+  sfxGain.gain.value = 0.5;
+  sfxGain.connect(masterGain);
+
   startMusic();
 }
 
-// ==== SOUND EFFECTS ====
+// ==== SFX (lebih punchy dengan multi-layer) ====
 function playTone(freq, duration, type='square', vol=1) {
   if (!audioCtx || muted) return;
   const osc = audioCtx.createOscillator();
@@ -126,7 +166,7 @@ function playTone(freq, duration, type='square', vol=1) {
   osc.type = type;
   osc.frequency.value = freq;
   gain.gain.value = 0.001;
-  gain.gain.exponentialRampToValueAtTime(0.15 * vol, audioCtx.currentTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.3 * vol, audioCtx.currentTime + 0.01);
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
   osc.connect(gain);
   gain.connect(sfxGain);
@@ -134,64 +174,81 @@ function playTone(freq, duration, type='square', vol=1) {
   osc.stop(audioCtx.currentTime + duration);
 }
 
+// Noise burst buat suara "cangkul" yang lebih real
+function playNoise(duration, vol=1) {
+  if (!audioCtx || muted) return;
+  const bufferSize = audioCtx.sampleRate * duration;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i/bufferSize);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.4 * vol;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 800;
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(sfxGain);
+  src.start();
+}
+
 function sfxHoe() {
-  // Suara cangkul - rendah & berdebar
-  playTone(120, 0.15, 'sawtooth', 1);
-  setTimeout(() => playTone(90, 0.1, 'sawtooth', 0.8), 30);
+  // Suara cangkul: noise + bass thud
+  playNoise(0.15, 1);
+  playTone(100, 0.2, 'sawtooth', 1.2);
+  setTimeout(() => playTone(70, 0.15, 'sawtooth', 0.9), 40);
 }
 
 function sfxSeed() {
-  // Suara tanam - "pop"
-  playTone(600, 0.08, 'sine', 1);
-  setTimeout(() => playTone(800, 0.06, 'sine', 0.7), 40);
+  playTone(700, 0.1, 'sine', 1.2);
+  setTimeout(() => playTone(950, 0.08, 'sine', 1), 40);
 }
 
 function sfxWater() {
-  // Suara air - descending sweep
-  playTone(1000, 0.15, 'sine', 1);
-  setTimeout(() => playTone(700, 0.1, 'sine', 0.8), 50);
-  setTimeout(() => playTone(500, 0.08, 'sine', 0.6), 100);
+  playTone(1100, 0.2, 'sine', 1.2);
+  setTimeout(() => playTone(800, 0.12, 'sine', 1), 60);
+  setTimeout(() => playTone(550, 0.1, 'sine', 0.9), 120);
 }
 
 function sfxHarvest() {
-  // Suara panen - arpeggio ceria
-  playTone(523, 0.08, 'square', 1); // C5
-  setTimeout(() => playTone(659, 0.08, 'square', 1), 60); // E5
-  setTimeout(() => playTone(784, 0.12, 'square', 1), 120); // G5
+  playTone(523, 0.1, 'square', 1.2);      // C5
+  setTimeout(() => playTone(659, 0.1, 'square', 1.2), 70);  // E5
+  setTimeout(() => playTone(784, 0.15, 'square', 1.2), 140); // G5
+  setTimeout(() => playTone(1047, 0.2, 'square', 1.2), 210); // C6
 }
 
 function sfxSell() {
-  // Suara jual - coin (Mario style)
-  playTone(988, 0.06, 'square', 1); // B5
-  setTimeout(() => playTone(1319, 0.15, 'square', 1), 60); // E6
+  playTone(988, 0.08, 'square', 1.2);
+  setTimeout(() => playTone(1319, 0.2, 'square', 1.2), 70);
+  setTimeout(() => playTone(1568, 0.15, 'square', 1), 150);
 }
 
 function sfxError() {
-  playTone(200, 0.15, 'sawtooth', 1);
+  playTone(180, 0.2, 'sawtooth', 1);
 }
 
 function sfxClick() {
-  playTone(1200, 0.03, 'square', 0.5);
+  playTone(1400, 0.04, 'square', 0.8);
 }
 
-// ==== CHIPTUNE BGM ====
-// Melodi sederhana + bassline, loop
+function sfxUnequip() {
+  playTone(500, 0.06, 'triangle', 0.8);
+  setTimeout(() => playTone(300, 0.08, 'triangle', 0.7), 50);
+}
+
+// ==== CHIPTUNE BGM (volume lebih gede) ====
 const melody = [
-  // Bar 1
   {n: 'C5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'G5', d: 0.15}, {n: 'E5', d: 0.15},
-  // Bar 2
   {n: 'A4', d: 0.15}, {n: 'C5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'C5', d: 0.15},
-  // Bar 3
   {n: 'F4', d: 0.15}, {n: 'A4', d: 0.15}, {n: 'C5', d: 0.15}, {n: 'A4', d: 0.15},
-  // Bar 4
   {n: 'G4', d: 0.15}, {n: 'B4', d: 0.15}, {n: 'D5', d: 0.15}, {n: 'B4', d: 0.15},
-  // Bar 5 (repeat bar 1)
   {n: 'C5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'G5', d: 0.15}, {n: 'C6', d: 0.15},
-  // Bar 6
   {n: 'A5', d: 0.15}, {n: 'E5', d: 0.15}, {n: 'C5', d: 0.3},
-  // Bar 7
   {n: 'F5', d: 0.15}, {n: 'C5', d: 0.15}, {n: 'A4', d: 0.3},
-  // Bar 8
   {n: 'G5', d: 0.15}, {n: 'D5', d: 0.15}, {n: 'B4', d: 0.3},
 ];
 
@@ -225,12 +282,9 @@ function scheduleNote(freq, startTime, duration, type, vol) {
 }
 
 let musicLoopTimer = null;
-let musicStartTime = 0;
-
 function startMusic() {
   if (musicPlaying || !audioCtx) return;
   musicPlaying = true;
-  musicStartTime = audioCtx.currentTime + 0.1;
   playMusicLoop();
 }
 
@@ -239,30 +293,61 @@ function playMusicLoop() {
 
   const start = audioCtx.currentTime + 0.05;
 
-  // Schedule melody
   let t = start;
   for (const note of melody) {
     if (noteFreq[note.n]) {
-      scheduleNote(noteFreq[note.n], t, note.d * 0.9, 'square', 0.4);
+      scheduleNote(noteFreq[note.n], t, note.d * 0.9, 'square', 0.6);
     }
     t += note.d;
   }
   const melodyDuration = t - start;
 
-  // Schedule bass
   let bt = start;
   for (const note of bass) {
     if (noteFreq[note.n]) {
-      scheduleNote(noteFreq[note.n], bt, note.d * 0.9, 'triangle', 0.6);
+      scheduleNote(noteFreq[note.n], bt, note.d * 0.9, 'triangle', 0.9);
     }
     bt += note.d;
   }
 
-  // Schedule next loop
   const loopDuration = Math.max(melodyDuration, bt - start);
   musicLoopTimer = setTimeout(() => {
     if (musicPlaying) playMusicLoop();
   }, loopDuration * 1000);
+}
+
+// ==== VOLUME CONTROL ====
+const volSlider = document.getElementById('volSlider');
+const volValue = document.getElementById('volValue');
+const muteBtn = document.getElementById('muteBtn');
+
+volSlider.addEventListener('input', e => {
+  masterVolume = parseInt(e.target.value) / 100;
+  volValue.textContent = e.target.value + '%';
+  if (masterGain && !muted) {
+    masterGain.gain.value = masterVolume;
+  }
+  // Update tombol mute visual
+  if (masterVolume === 0) {
+    muteBtn.classList.add('muted');
+  } else if (!muted) {
+    muteBtn.classList.remove('muted');
+  }
+});
+
+muteBtn.addEventListener('click', () => toggleMute());
+
+function toggleMute() {
+  muted = !muted;
+  if (muted) {
+    muteBtn.textContent = '🔇';
+    muteBtn.classList.add('muted');
+    if (masterGain) masterGain.gain.value = 0;
+  } else {
+    muteBtn.textContent = '🔊';
+    muteBtn.classList.remove('muted');
+    if (masterGain) masterGain.gain.value = masterVolume;
+  }
 }
 
 // ==== MAIN GAME ====
@@ -313,7 +398,6 @@ const player = {
 const inv = { gold: 0, wheat: 0 };
 const camera = { x: 0, y: 0 };
 
-// tool: 'hoe' | 'seed' | 'water' | 'harvest' | null (unequip)
 let currentTool = null;
 
 // ==== MOUSE ====
@@ -346,7 +430,6 @@ canvas.addEventListener('mouseleave', () => {
 
 canvas.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
-  // Init audio pada klik pertama
   if (!audioCtx) initAudio();
   if (audioCtx.state === 'suspended') audioCtx.resume();
 
@@ -360,7 +443,7 @@ canvas.addEventListener('mouseup', () => {
   lastDragTile = null;
 });
 
-// ==== TOOLBAR (dengan toggle) ====
+// ==== TOOLBAR ====
 document.querySelectorAll('.tool').forEach(el => {
   el.addEventListener('click', () => {
     if (!audioCtx) initAudio();
@@ -371,9 +454,9 @@ document.querySelectorAll('.tool').forEach(el => {
 
 function toggleTool(tool) {
   if (currentTool === tool) {
-    // UNEQUIP
     currentTool = null;
     showToast('🚫 Tool dilepas', '#888');
+    sfxUnequip();
   } else {
     currentTool = tool;
     const names = { hoe: '🪓 Hoe', seed: '🌱 Seed', water: '💧 Water', harvest: '🌾 Harvest' };
@@ -394,39 +477,32 @@ const keys = {};
 document.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
 
-  // Toggle tool dengan angka
   if (e.key === '1') toggleTool('hoe');
   if (e.key === '2') toggleTool('seed');
   if (e.key === '3') toggleTool('water');
   if (e.key === '4') toggleTool('harvest');
   if (e.key === 'j' || e.key === 'J') sellWheat();
-
-  // Mute toggle
   if (e.key === 'm' || e.key === 'M') toggleMute();
+
+  // Volume shortcut: + dan -
+  if (e.key === '+' || e.key === '=') {
+    masterVolume = Math.min(1, masterVolume + 0.1);
+    volSlider.value = Math.round(masterVolume * 100);
+    volValue.textContent = Math.round(masterVolume * 100) + '%';
+    if (masterGain && !muted) masterGain.gain.value = masterVolume;
+    showToast(`🔊 Volume: ${Math.round(masterVolume*100)}%`, '#ffed4a');
+  }
+  if (e.key === '-' || e.key === '_') {
+    masterVolume = Math.max(0, masterVolume - 0.1);
+    volSlider.value = Math.round(masterVolume * 100);
+    volValue.textContent = Math.round(masterVolume * 100) + '%';
+    if (masterGain && !muted) masterGain.gain.value = masterVolume;
+    showToast(`🔊 Volume: ${Math.round(masterVolume*100)}%`, '#ffed4a');
+  }
 
   if (['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key)) e.preventDefault();
 });
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-
-function toggleMute() {
-  muted = !muted;
-  const hint = document.getElementById('muteHint');
-  if (muted) {
-    hint.textContent = '🔇 MUTED | M = unmute';
-    hint.classList.add('muted');
-    if (audioCtx) {
-      musicGain.gain.value = 0;
-      sfxGain.gain.value = 0;
-    }
-  } else {
-    hint.textContent = '🔊 M = mute';
-    hint.classList.remove('muted');
-    if (audioCtx) {
-      musicGain.gain.value = 0.08;
-      sfxGain.gain.value = 0.15;
-    }
-  }
-}
 
 // ==== TOAST ====
 function showToast(msg, color='#ffed4a') {
@@ -444,7 +520,6 @@ function showToast(msg, color='#ffed4a') {
 function applyTool(tx, ty) {
   if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
 
-  // Kalau nggak ada tool = nggak bisa apa-apa
   if (!currentTool) {
     if (world[ty][tx] === T_CROP && crops[`${tx},${ty}`] && crops[`${tx},${ty}`].stage >= 3) {
       showToast('💡 Pilih tool Harvest dulu [4]', '#ffed4a');
@@ -558,7 +633,6 @@ function update() {
     player.animTimer = 0;
   }
 
-  // Growth
   Object.keys(crops).forEach(k => {
     const c = crops[k];
     if (c.stage >= 0 && c.stage < 3) {
@@ -571,7 +645,6 @@ function update() {
     }
   });
 
-  // Camera
   const tx = player.x - canvas.width / (2*PX) + player.w/2;
   const ty = player.y - canvas.height / (2*PX) + player.h/2;
   camera.x += (tx - camera.x) * 0.15;
@@ -728,7 +801,6 @@ function drawCursorHighlight() {
   const px = Math.floor((wx - camera.x) * PX);
   const py = Math.floor((wy - camera.y) * PX);
 
-  // Kalau nggak ada tool, cursor abu-abu tipis
   let color = '#444';
   let alpha = 0.3;
 
@@ -752,7 +824,6 @@ function drawCursorHighlight() {
   ctx.fillStyle = color;
   ctx.fillRect(px, py, TILE*PX, TILE*PX);
 
-  // Kalau tool aktif & valid, tampilkan emoji
   if (currentTool) {
     const t = world[ty][tx];
     const key = `${tx},${ty}`;
@@ -807,7 +878,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// Init audio pada interaction pertama (browser autoplay policy)
+// Init audio saat interaksi pertama
 document.body.addEventListener('click', () => {
   if (!audioCtx) initAudio();
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
