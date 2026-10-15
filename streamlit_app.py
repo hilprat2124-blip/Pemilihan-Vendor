@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Pixel Farm RPG", page_icon="🌾", layout="wide")
 st.title("🌾 Pixel Farm RPG")
-st.caption("**WASD** jalan • **Klik** action • **1-8** tool • **I** inventory • **M** mute • **E** interaksi")
+st.caption("**WASD** jalan • **Klik** action • **1-9** tool • **I** inventory • **B** shop • **E** interaksi • **M** mute")
 
 game_html = r"""
 <!DOCTYPE html>
@@ -23,7 +23,7 @@ game_html = r"""
   #topRight { position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.7); border:2px solid #222; border-radius:4px; padding:8px 14px; font-size:13px; text-align:right; pointer-events:none; line-height:1.6; }
   #timeOfDay { color:#ffed4a; font-weight:bold; font-size:14px; text-shadow:0 0 8px currentColor; }
   #gold { color:#ffd700; font-weight:bold; text-shadow:0 0 8px #ffd700; }
-  #toolbar { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:5px; background:rgba(0,0,0,0.85); padding:8px; border:2px solid #2a2a3e; border-radius:8px; flex-wrap:wrap; justify-content:center; max-width:90%; }
+  #toolbar { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:5px; background:rgba(0,0,0,0.85); padding:8px; border:2px solid #2a2a3e; border-radius:8px; flex-wrap:wrap; justify-content:center; max-width:95%; }
   .tool { padding:7px 10px; background:rgba(30,30,50,0.9); border:2px solid #333; color:#888; font-family:inherit; font-size:11px; cursor:pointer; border-radius:5px; user-select:none; transition:all 0.15s; min-width:54px; text-align:center; position:relative; }
   .tool:hover { background:rgba(50,50,80,0.9); border-color:#666; color:#ccc; transform:translateY(-2px); }
   .tool.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; box-shadow:0 0 15px rgba(255,237,74,0.6); font-weight:bold; }
@@ -69,7 +69,11 @@ game_html = r"""
   #muteIcon:hover { transform:scale(1.2); }
   #stats { position:absolute; top:12px; left:210px; font-size:11px; color:#888; background:rgba(0,0,0,0.6); padding:6px 10px; border-radius:4px; border:1px solid #222; pointer-events:none; line-height:1.5; }
   #saveIndicator { position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#5aff5a; padding:6px 14px; border-radius:4px; font-size:12px; border:2px solid #5aff5a; display:none; z-index:150; box-shadow:0 0 15px rgba(90,255,90,0.4); }
-  #bedPrompt { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.92); border:3px solid #4a90e2; color:#4a90e2; padding:16px 28px; font-size:16px; display:none; text-align:center; border-radius:8px; box-shadow:0 0 30px rgba(74,144,226,0.5); z-index:150; pointer-events:none; }
+  #bedPrompt { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:3px solid #5aff5a; color:#5aff5a; padding:20px 36px; font-size:18px; display:none; text-align:center; border-radius:10px; box-shadow:0 0 40px rgba(90,255,90,0.7); z-index:150; pointer-events:none; animation: bedPulse 1.2s infinite; }
+  @keyframes bedPulse {
+    0%, 100% { transform: translate(-50%,-50%) scale(1); }
+    50% { transform: translate(-50%,-50%) scale(1.05); }
+  }
   #saveBtn { position:absolute; top:60px; left:12px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#5aff5a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
   #saveBtn:hover { border-color:#5aff5a; box-shadow:0 0 10px rgba(90,255,90,0.4); }
   #achBtn { position:absolute; top:60px; left:90px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ffed4a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
@@ -108,6 +112,7 @@ game_html = r"""
     <div class="tool" data-tool="sword"><span class="num">6</span>⚔️<br>Sword</div>
     <div class="tool" data-tool="bow"><span class="num">7</span>🏹<br>Bow</div>
     <div class="tool" data-tool="rod"><span class="num">8</span>🎣<br>Fishing</div>
+    <div class="tool" data-tool="shovel"><span class="num">9</span>🪏<br>Shovel</div>
   </div>
   <div id="seedPickerWrap">
     <div style="color:#ffed4a;font-size:12px;margin-bottom:6px;text-align:center">🌱 Pilih Benih:</div>
@@ -128,9 +133,9 @@ game_html = r"""
   <div id="achBtn">🏆 Trophy</div>
   <div id="shopBtn">🏪 Shop</div>
   <div id="saveIndicator">💾 Tersimpan!</div>
-  <div id="bedPrompt">🛏️<br>Tekan <b>E</b> untuk tidur<br><small>Skip ke pagi berikutnya</small></div>
+  <div id="bedPrompt">🛏️ <b>Tidur?</b><br>Tekan <b style="color:#ffed4a;font-size:22px">E</b> untuk tidur</div>
   <div id="fishIndicator">🎣 <span id="fishStatus">Menunggu...</span><div id="fishBar"><div class="fill" id="fishBarFill"></div></div><div style="font-size:11px;color:#888;margin-top:6px" id="fishHint"></div></div>
-  <div id="hint">WASD = jalan • Klik = action • 1-8 = tool<br>E = interaksi/toko • I = inventory • M = mute</div>
+  <div id="hint">WASD = jalan • Klik = action • 1-9 = tool<br>E = interaksi • B = toko • I = inventory • M = mute</div>
 </div>
 
 <script>
@@ -188,6 +193,7 @@ function sfxBuy() { playTone(400,0.08,'square',1); playTone(600,0.1,'square',0.9
 function sfxError() { playTone(180,0.15,'sawtooth',0.8); }
 function sfxClick() { playTone(1400,0.03,'square',0.6); }
 function sfxAxe() { playNoise(0.2,1.2,1200); playTone(160,0.15,'square',1); playTone(90,0.2,'square',0.8,0.05); }
+function sfxShovel() { playNoise(0.18,1,700); playTone(100,0.2,'sawtooth',0.9); }
 function sfxHit() { playNoise(0.12,0.8,2000); playTone(400,0.08,'square',0.8); }
 function sfxAnimalHurt() { playTone(600,0.1,'sawtooth',0.9); playTone(400,0.15,'sawtooth',0.8,0.08); }
 function sfxEat() { playTone(300,0.06,'square',0.9); playTone(400,0.06,'square',0.9,0.08); playTone(500,0.08,'square',0.8,0.16); }
@@ -278,7 +284,7 @@ const CROP_TYPES = {
 };
 
 // ============================================
-// ==== STATE (declare early!) ====
+// ==== STATE ====
 // ============================================
 const camera = { x:0, y:0 };
 const player = {
@@ -307,7 +313,7 @@ let nearDoor = false;
 let nearBed = false;
 let nearShop = false;
 let nearWater = false;
-let nearShopTile = null; // posisi tile shop
+let nearShopTile = null;
 
 // ============================================
 // ==== UTILS ====
@@ -398,12 +404,9 @@ function generateWorld() {
     }
     world.push(row);
   }
-  // Clear village area
   for (let y=8; y<18; y++)
     for (let x=4; x<WORLD_W-4; x++) world[y][x] = T_GRASS;
-  // Jalan
   for (let x=0; x<WORLD_W; x++) { world[13][x] = T_PATH; world[14][x] = T_PATH; }
-  // Rumah
   function drawHouse(x0, y0) {
     for (let y=y0; y<y0+4; y++)
       for (let x=x0; x<x0+5; x++)
@@ -414,27 +417,22 @@ function generateWorld() {
   drawHouse(17, 9);
   drawHouse(30, 9);
   
-  // ⚠️ SHOP: taruh di lokasi yg udah di-clear, JANGAN overwrite lagi
+  // SHOP
   world[15][25] = T_SHOP;
-  // Kasih area sekitar shop jadi path biar mudah reach
   world[15][24] = T_PATH;
   world[15][26] = T_PATH;
-  world[16][25] = T_PATH; // bawah shop biar player bisa nempel
+  world[16][25] = T_PATH;
   
-  // Lampu (skip tile shop & path)
   for (let x=6; x<WORLD_W-6; x+=8)
     if (world[12] && world[12][x] === T_GRASS) world[12][x] = T_LAMP;
   
-  // Clear area spawn bawah (jangan hapus shop!)
   for (let y=18; y<WORLD_H-2; y++)
     for (let x=15; x<25; x++)
       if ([T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
-  // Clear spawn area sekitar shop juga
   for (let y=15; y<18; y++)
     for (let x=24; x<28; x++)
       if (world[y] && [T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
 
-  // Init trees
   for (let y=0; y<WORLD_H; y++)
     for (let x=0; x<WORLD_W; x++)
       if (world[y][x] === T_TREE) trees[`${x},${y}`] = { stage: 3, timer: 0 };
@@ -454,6 +452,7 @@ function generateInterior() {
     w.push(row);
   }
   w[0][10] = T_HOUSE_DOOR;
+  // Kasur di kiri-atas
   w[3][4] = T_BED; w[3][5] = T_BED; w[4][4] = T_BED; w[4][5] = T_BED;
   w[5][14] = T_TABLE; w[5][15] = T_TABLE; w[6][14] = T_TABLE; w[6][15] = T_TABLE;
   return w;
@@ -534,7 +533,7 @@ function initNPCs() {
       dialog:'Malam hari ada serigala! Hati-hati.',
       targetX: 19, targetY: 15, moveTimer: 4, speed: 0.35, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
     { x: 32*TILE, y: 15*TILE, dir:'right', color:'#ffe66d', name:'Pak Tani',
-      dialog:'Ada toko di timur (tile 25)! Tekan tombol Shop atau E.',
+      dialog:'Ada toko di timur! Tekan tombol Shop atau B.',
       targetX: 32, targetY: 15, moveTimer: 5, speed: 0.25, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
   ];
 }
@@ -848,6 +847,19 @@ function checkNearbyInteriorTiles() {
     {x: player.x + player.w/2, y: player.y + player.h/2},
   ];
   if (currentInterior) {
+    // ==== FIX TIDUR: cek kasur pakai radius 1 tile ====
+    const ptx = Math.floor((player.x + player.w/2) / TILE);
+    const pty = Math.floor((player.y + player.h/2) / TILE);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const tx = ptx + dx, ty = pty + dy;
+        if (tx>=0 && ty>=0 && tx<currentInterior.world[0].length && ty<currentInterior.world.length) {
+          if (currentInterior.world[ty][tx] === T_BED) nearBed = true;
+          if (currentInterior.world[ty][tx] === T_HOUSE_DOOR) nearDoor = true;
+        }
+      }
+    }
+    // Fallback body overlap
     bodyPoints.forEach(p => {
       const tx = Math.floor(p.x / TILE), ty = Math.floor(p.y / TILE);
       if (tx>=0 && ty>=0 && tx<currentInterior.world[0].length && ty<currentInterior.world.length) {
@@ -863,8 +875,8 @@ function checkNearbyInteriorTiles() {
         if (world[ty][tx] === T_SHOP) { nearShop = true; nearShopTile = {x:tx, y:ty}; }
       }
     });
-    // Fallback: kalau player deket shop tapi belum overlap (radius 1.5 tile)
-    if (!nearShop) {
+    // Fallback radius 1 tile buat shop & door
+    if (!nearShop || !nearDoor) {
       const ptx = Math.floor((player.x + player.w/2) / TILE);
       const pty = Math.floor((player.y + player.h/2) / TILE);
       for (let dy = -1; dy <= 1; dy++) {
@@ -906,7 +918,7 @@ function enterHouse(doorX, doorY) {
   player.y = interior.playerSpawn.y;
   player.dir = 'down';
   sfxDoor();
-  showToast('🏠 Masuk rumah', '#4a90e2');
+  showToast('🏠 Masuk rumah — cari kasur (kiri-atas), tekan E', '#4a90e2');
   startMusic('interior');
   doorCooldown = 1.5;
 }
@@ -959,7 +971,7 @@ function showBlackFade() {
 function doInteractE() {
   if (currentInterior) {
     if (nearBed) { sleep(); return; }
-    showToast('💡 Cari kasur buat tidur', '#ffed4a');
+    showToast('💡 Cari kasur di kiri-atas rumah', '#ffed4a');
     return;
   }
   if (nearShop) { toggleShop(); return; }
@@ -1101,6 +1113,23 @@ function applyTool(tx, ty) {
       sfxAxe(); showToast('🪓 Tebang! +3 kayu', '#a07040');
       updateHUD(); checkAchievements();
     } else sfxError();
+  } else if (currentTool === 'shovel') {
+    // ==== SHOVEL: balikin farmland/crop/stump/sapling → grass ====
+    if (t === T_FARMLAND || t === T_CROP || t === T_STUMP || t === T_SAPLING) {
+      if (crops[key]) delete crops[key];
+      if (trees[key]) delete trees[key];
+      world[ty][tx] = T_GRASS;
+      sfxShovel();
+      showToast('🪏 Dibersihin ke rumput!', '#5aff5a');
+      updateHUD();
+    } else if (t === T_FLOWER) {
+      world[ty][tx] = T_GRASS;
+      sfxShovel();
+      showToast('🪏 Bunga dibersihin', '#5aff5a');
+    } else {
+      sfxError();
+      showToast('❌ Cuma buat tanah/tanaman', '#ff4444');
+    }
   }
 }
 function toggleTool(tool) {
@@ -1110,7 +1139,7 @@ function toggleTool(tool) {
     if (sp) sp.style.display = 'none';
   } else {
     currentTool = tool;
-    const names = { hoe:'🪓 Hoe', seed:'🌱 Seed', water:'💧 Water', harvest:'🌾 Harvest', axe:'🪓 Axe', sword:'⚔️ Sword', bow:'🏹 Bow', rod:'🎣 Fishing Rod' };
+    const names = { hoe:'🪓 Hoe', seed:'🌱 Seed', water:'💧 Water', harvest:'🌾 Harvest', axe:'🪓 Axe', sword:'⚔️ Sword', bow:'🏹 Bow', rod:'🎣 Fishing Rod', shovel:'🪏 Shovel' };
     showToast(`${names[tool] || tool} dipilih`, '#ffed4a'); sfxClick();
     const sp = document.getElementById('seedPickerWrap');
     if (sp) sp.style.display = (tool === 'seed') ? 'block' : 'none';
@@ -1202,11 +1231,12 @@ document.addEventListener('keydown', e => {
   if (k === '6') toggleTool('sword');
   if (k === '7') toggleTool('bow');
   if (k === '8') toggleTool('rod');
+  if (k === '9') toggleTool('shovel');
   if (k === 'i') toggleInventory();
   if (k === 'm') toggleMute();
   if (k === 'j') sellAll();
+  if (k === 'b') { ensureAudio(); toggleShop(); }
   if (k === 'e') { ensureAudio(); doInteractE(); }
-  if (k === 'b') { ensureAudio(); toggleShop(); } // shortcut shop
   if (k === 'escape') {
     ['inv','shop','achPanel'].forEach(id => {
       const el = document.getElementById(id);
@@ -1258,7 +1288,6 @@ document.querySelectorAll('.shopTab').forEach(tab => {
   };
 });
 
-// Button handlers
 const bindClick = (id, fn) => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('click', fn);
@@ -1346,7 +1375,6 @@ function update() {
 
   updateFishing(dt);
 
-  // Crops
   Object.keys(crops).forEach(k => {
     const c = crops[k];
     if (c.stage >= 0 && c.stage < 3) {
@@ -1355,7 +1383,6 @@ function update() {
       if (c.timer > growTime / 4) { c.stage++; c.timer = 0; c.watered = false; }
     }
   });
-  // Trees
   Object.keys(trees).forEach(k => {
     const t = trees[k];
     if (t.stage >= -1 && t.stage < 3) {
@@ -1371,7 +1398,6 @@ function update() {
     }
   });
 
-  // NPC wander
   if (!currentInterior) {
     npcs.forEach(npc => {
       npc.moveTimer -= dt;
@@ -1405,7 +1431,6 @@ function update() {
     });
   }
 
-  // Animals
   if (!currentInterior) {
     animals.forEach(a => {
       if (a.dead) return;
@@ -1440,7 +1465,6 @@ function update() {
     });
   }
 
-  // Wolf spawn (kurangi agresif)
   if (phase === 'night' && !currentInterior && time.day >= 1) {
     wolfSpawnTimer += dt;
     if (wolfSpawnTimer > 12 && wolves.length < 3) { wolfSpawnTimer = 0; spawnWolf(); }
@@ -1448,7 +1472,6 @@ function update() {
     if (howlTimer > 20 && wolves.length > 0) { howlTimer = 0; sfxWolfHowl(); }
   } else { wolfSpawnTimer = 0; howlTimer = 0; }
 
-  // Wolves
   if (!currentInterior) {
     wolves.forEach(w => {
       const dxp = player.x - w.x, dyp = player.y - w.y;
@@ -1521,7 +1544,6 @@ function update() {
     arrows = arrows.filter(a => a.life > 0 && a.x > 0 && a.x < WORLD_W*TILE && a.y > 0 && a.y < WORLD_H*TILE);
   }
 
-  // Hunger & HP
   hungerCounter += dt;
   if (hungerCounter > 6) { hungerCounter = 0; player.hunger = Math.max(0, player.hunger - 1); }
   if (player.hunger > 60) {
@@ -1542,7 +1564,6 @@ function update() {
     showToast('💀 Kamu pingsan!', '#ff4444'); sfxError();
   }
 
-  // Camera
   const tX = player.x - canvas.width/(2*PX) + player.w/2;
   const tY = player.y - canvas.height/(2*PX) + player.h/2;
   camera.x += (tX - camera.x) * 0.15;
@@ -1688,7 +1709,6 @@ function drawTile(t, x, y) {
     artPx(wx+11, wy+12, 1, 1, '#ffd700');
     ctx.shadowBlur = 0;
   } else if (t === T_SHOP) {
-    // Highlight kalau player deket
     if (nearShop) {
       const glow = Math.sin(frameCount*0.15)*0.4 + 0.6;
       ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 30*glow;
@@ -1696,13 +1716,11 @@ function drawTile(t, x, y) {
       const glow = Math.sin(frameCount*0.08) * 0.2 + 0.8;
       ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 15 * glow;
     }
-    // Bangunan toko
     artPx(wx, wy, TILE, TILE, '#ffd700');
-    artPx(wx, wy, TILE, 4, '#ff8800'); // atap
-    artPx(wx+2, wy+6, 12, 8, '#8b4513'); // pintu kayu
-    artPx(wx+3, wy+7, 4, 4, '#ffe66d'); // jendela kiri
-    artPx(wx+9, wy+7, 4, 4, '#ffe66d'); // jendela kanan
-    // Sign "$"
+    artPx(wx, wy, TILE, 4, '#ff8800');
+    artPx(wx+2, wy+6, 12, 8, '#8b4513');
+    artPx(wx+3, wy+7, 4, 4, '#ffe66d');
+    artPx(wx+9, wy+7, 4, 4, '#ffe66d');
     artPx(wx+7, wy+4, 2, 9, '#fff');
     artPx(wx+6, wy+4, 4, 2, '#fff');
     artPx(wx+6, wy+9, 4, 2, '#fff');
@@ -1729,7 +1747,7 @@ function drawTile(t, x, y) {
     artPx(wx, wy+8, TILE, TILE-8, '#4a90e2');
     if (nearBed) {
       const glow = Math.sin(frameCount*0.15)*0.4 + 0.6;
-      ctx.strokeStyle = '#ffed4a'; ctx.lineWidth = 2; ctx.globalAlpha = glow;
+      ctx.strokeStyle = '#ffed4a'; ctx.lineWidth = 3; ctx.globalAlpha = glow;
       ctx.strokeRect(Math.floor((wx-camera.x)*PX)+1, Math.floor((wy-camera.y)*PX)+1, TILE*PX-2, TILE*PX-2);
       ctx.globalAlpha = 1;
     }
@@ -1846,6 +1864,7 @@ function drawCursorHighlight() {
     else if (currentTool === 'water' && t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) { color = '#4a90e2'; alpha = 0.7; }
     else if (currentTool === 'harvest' && t === T_CROP && crops[key] && crops[key].stage >= 3) { color = '#ffed4a'; alpha = 0.9; }
     else if (currentTool === 'axe' && t === T_TREE) { color = '#ff8800'; alpha = 0.8; }
+    else if (currentTool === 'shovel' && (t === T_FARMLAND || t === T_CROP || t === T_STUMP || t === T_SAPLING || t === T_FLOWER)) { color = '#8b6f47'; alpha = 0.8; }
     else if (currentTool === 'sword') {
       const a = getAnimalAt(tx, ty); const w = getWolfAt(tx, ty);
       if (a || w) { color = '#ff3333'; alpha = 0.9; } else { color = '#88f'; alpha = 0.5; }
@@ -1949,9 +1968,6 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// ============================================
-// ==== START ====
-// ============================================
 document.body.addEventListener('click', () => ensureAudio(), { once: false });
 updateHUD(); updateToolbarUI(); updateHUDBars(); loop();
 </script>
