@@ -1,241 +1,58 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import random
 
-st.set_page_config(page_title="Pixel Catcher", page_icon="🎮", layout="centered")
-st.title("🎮 Pixel Catcher")
-st.caption("← → atau A/D buat gerak. Tangkap kotak, hindari bom!")
+st.set_page_config(page_title="Genetic Breeding", page_icon="🧬", layout="centered")
+st.title("🧬 Slime Breeding Lab")
+st.caption("Breed 2 slime, lihat gen mana yang turun ke anaknya!")
 
-game_html = """
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  body { margin:0; background:#1a1a2e; font-family:monospace; }
-  canvas {
-    display:block; margin:0 auto;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    border: 4px solid #0f0;
-    box-shadow: 0 0 20px #0f0;
-  }
-  #hud {
-    text-align:center; color:#0f0; font-size:20px;
-    padding:10px; font-family:monospace;
-    text-shadow: 0 0 5px #0f0;
-  }
-</style>
-</head>
-<body>
-<div id="hud">SCORE: <span id="score">0</span> | LIVES: <span id="lives">❤❤❤</span></div>
-<canvas id="game" width="480" height="480"></canvas>
+# Gen: warna (R=merah dominan, r=biru resesif)
+COLORS = {"RR": "🔴 Merah", "Rr": "🌸 Pink", "rr": "🔵 Biru"}
 
-<script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+if "slimes" not in st.session_state:
+    st.session_state.slimes = [
+        {"id": 1, "name": "Slime A", "gen": "RR"},
+        {"id": 2, "name": "Slime B", "gen": "rr"},
+    ]
+    st.session_state.babies = []
 
-const PIXEL = 4;  // ukuran 1 pixel "art"
-const W = canvas.width;
-const H = canvas.height;
+st.subheader("🧪 Koloni Slime")
+cols = st.columns(len(st.session_state.slimes))
+for i, s in enumerate(st.session_state.slimes):
+    with cols[i]:
+        st.markdown(f"### {COLORS[s['gen']]}")
+        st.caption(f"{s['name']} — Gen: `{s['gen']}`")
 
-let keys = {};
-let score = 0;
-let lives = 3;
-let player = { x: W/2 - 24, y: H - 40, w: 48, h: 16, speed: 6 };
-let items = [];
-let particles = [];
-let stars = [];
-let spawnTimer = 0;
-let spawnInterval = 60;
-let gameOver = false;
-let frame = 0;
+st.divider()
+st.subheader("💕 Breeding")
 
-// Bintang latar
-for (let i=0;i<40;i++){
-  stars.push({x:Math.random()*W, y:Math.random()*H, s:Math.random()*2+1});
-}
+if len(st.session_state.slimes) >= 2:
+    names = [s["name"] for s in st.session_state.slimes]
+    p1 = st.selectbox("Parent 1", names, key="p1")
+    p2 = st.selectbox("Parent 2", names, index=1, key="p2")
 
-// Input
-document.addEventListener('keydown', e => keys[e.key.toLowerCase()]=true);
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()]=false);
+    if st.button("🧬 Breed!", use_container_width=True):
+        s1 = next(s for s in st.session_state.slimes if s["name"] == p1)
+        s2 = next(s for s in st.session_state.slimes if s["name"] == p2)
 
-function drawPixel(x, y, size, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(Math.floor(x/PIXEL)*PIXEL, Math.floor(y/PIXEL)*PIXEL, size, size);
-}
+        # Ambil 1 alel dari masing-masing
+        a1 = random.choice(list(s1["gen"]))
+        a2 = random.choice(list(s2["gen"]))
+        baby_gen = "".join(sorted([a1, a2], key=lambda x: x.lower()))
 
-function drawPlayer() {
-  // Keranjang pixel
-  const x = player.x, y = player.y;
-  // Body
-  drawPixel(x, y+8, 48, '#8B4513');
-  // Atas
-  drawPixel(x, y+4, 48, '#A0522D');
-  // Garis-garis pixel
-  for (let i=0;i<48;i+=8){
-    drawPixel(x+i, y+8, 4, '#6B3410');
-    drawPixel(x+i, y+16, 4, '#6B3410');
-  }
-  // Rim highlight
-  drawPixel(x, y, 48, '#D2691E');
-}
+        baby = {
+            "id": len(st.session_state.slimes) + len(st.session_state.babies) + 1,
+            "name": f"Baby {len(st.session_state.babies)+1}",
+            "gen": baby_gen,
+        }
+        st.session_state.babies.append(baby)
+        st.success(f"🐣 Lahir: {COLORS[baby_gen]} dengan gen `{baby_gen}`!")
+        st.balloons()
 
-function spawnItem() {
-  const isBomb = Math.random() < 0.25;
-  items.push({
-    x: Math.floor(Math.random() * (W-24) / PIXEL) * PIXEL,
-    y: -20,
-    w: 16,
-    h: 16,
-    vy: 2 + Math.random()*2,
-    type: isBomb ? 'bomb' : 'coin',
-  });
-}
+if st.session_state.babies:
+    st.subheader("👶 Anak-anak")
+    for b in st.session_state.babies:
+        st.write(f"{COLORS[b['gen']]} — `{b['gen']}`")
 
-function drawItem(it) {
-  if (it.type === 'coin') {
-    // Koin pixel emas
-    drawPixel(it.x, it.y, 16, '#FFD700');
-    drawPixel(it.x+4, it.y+4, 8, '#FFA500');
-    drawPixel(it.x+8, it.y+8, 4, '#FFF700');
-  } else {
-    // Bom pixel
-    drawPixel(it.x, it.y+4, 16, '#333');
-    drawPixel(it.x+4, it.y, 8, '#333');
-    drawPixel(it.x+6, it.y-4, 4, '#FF4500');
-    drawPixel(it.x+4, it.y+8, 4, '#666');
-    drawPixel(it.x+8, it.y+8, 4, '#666');
-  }
-}
-
-function addParticles(x, y, color) {
-  for (let i=0;i<10;i++){
-    particles.push({
-      x, y,
-      vx: (Math.random()-0.5)*6,
-      vy: (Math.random()-0.5)*6,
-      life: 20,
-      color
-    });
-  }
-}
-
-function update() {
-  if (gameOver) return;
-  frame++;
-
-  // Gerak player
-  if (keys['arrowleft'] || keys['a']) player.x -= player.speed;
-  if (keys['arrowright'] || keys['d']) player.x += player.speed;
-  player.x = Math.max(0, Math.min(W - player.w, player.x));
-
-  // Spawn item
-  spawnTimer++;
-  if (spawnTimer > spawnInterval) {
-    spawnItem();
-    spawnTimer = 0;
-    spawnInterval = Math.max(25, spawnInterval - 0.5);
-  }
-
-  // Update items
-  items.forEach(it => it.y += it.vy);
-  items = items.filter(it => it.y < H + 30);
-
-  // Collision
-  items.forEach(it => {
-    if (it.y + it.h > player.y &&
-        it.y < player.y + player.h &&
-        it.x + it.w > player.x &&
-        it.x < player.x + player.w) {
-      if (it.type === 'coin') {
-        score += 10;
-        addParticles(it.x+8, it.y+8, '#FFD700');
-      } else {
-        lives--;
-        addParticles(it.x+8, it.y+8, '#FF0000');
-        if (lives <= 0) gameOver = true;
-      }
-      it.y = H + 100; // hilang
-    }
-  });
-
-  // Particles
-  particles.forEach(p => { p.x+=p.vx; p.y+=p.vy; p.life--; p.vy+=0.2; });
-  particles = particles.filter(p => p.life > 0);
-
-  // Update HUD
-  document.getElementById('score').textContent = score;
-  document.getElementById('lives').textContent = '❤'.repeat(Math.max(0, lives));
-}
-
-function drawBackground() {
-  // Gradient gelap
-  const grad = ctx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0, '#0a0a1e');
-  grad.addColorStop(1, '#1a1a3e');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,W,H);
-
-  // Bintang pixel
-  stars.forEach(s => {
-    ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.sin(frame*0.05 + s.x)*0.2})`;
-    ctx.fillRect(Math.floor(s.x/PIXEL)*PIXEL, Math.floor(s.y/PIXEL)*PIXEL, PIXEL, PIXEL);
-  });
-
-  // Lantai pixel
-  for (let i=0;i<W;i+=PIXEL*4){
-    ctx.fillStyle = i % (PIXEL*8) === 0 ? '#2a2a4e' : '#252545';
-    ctx.fillRect(i, H - PIXEL*2, PIXEL*4, PIXEL*2);
-  }
-}
-
-function drawGameOver() {
-  ctx.fillStyle = 'rgba(0,0,0,0.8)';
-  ctx.fillRect(0, H/2 - 60, W, 120);
-  ctx.fillStyle = '#f00';
-  ctx.font = 'bold 32px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('GAME OVER', W/2, H/2);
-  ctx.fillStyle = '#0f0';
-  ctx.font = 'bold 16px monospace';
-  ctx.fillText('SCORE: ' + score, W/2, H/2 + 30);
-  ctx.fillText('Klik untuk main lagi', W/2, H/2 + 50);
-}
-
-function draw() {
-  drawBackground();
-  items.forEach(drawItem);
-  drawPlayer();
-
-  // Particles pixel
-  particles.forEach(p => {
-    ctx.globalAlpha = p.life/20;
-    ctx.fillStyle = p.color;
-    ctx.fillRect(Math.floor(p.x/PIXEL)*PIXEL, Math.floor(p.y/PIXEL)*PIXEL, PIXEL, PIXEL);
-  });
-  ctx.globalAlpha = 1;
-
-  if (gameOver) drawGameOver();
-}
-
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-canvas.addEventListener('click', () => {
-  if (gameOver) {
-    score = 0; lives = 3; items = []; particles = [];
-    player.x = W/2 - 24; gameOver = false;
-    spawnInterval = 60; spawnTimer = 0;
-  }
-});
-
-loop();
-</script>
-</body>
-</html>
-"""
-
-components.html(game_html, height=560)
+if st.button("🔄 Reset"):
+    st.session_state.clear()
+    st.rerun()
