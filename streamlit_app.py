@@ -1,9 +1,9 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Pixel Farm v2", page_icon="🌾", layout="wide")
-st.title("🌾 Pixel Farm v2 - Gampang!")
-st.caption("**WASD** jalan • **E** kerjakan (auto!) • **J** jual gandum • Nggak perlu hafal apa-apa!")
+st.set_page_config(page_title="Pixel Farm v3", page_icon="🌾", layout="wide")
+st.title("🌾 Pixel Farm v3 - Klik-Klik!")
+st.caption("**Klik tile** buat kerjakan • **Drag** buat banyak tile • **1/2/3/4** pilih tool • **WASD** jalan")
 
 game_html = """
 <!DOCTYPE html>
@@ -17,6 +17,7 @@ game_html = """
     border:4px solid #0f0;
     box-shadow:0 0 30px #0f0;
     background:#000;
+    cursor:crosshair;
   }
   #hud {
     position:absolute; top:10px; left:10px;
@@ -25,14 +26,36 @@ game_html = """
     line-height:1.8;
   }
   #hud b { color:#ffed4a; text-shadow:0 0 8px #ffed4a; }
-  #action {
+  #toolbar {
     position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-    color:#ffed4a; font-size:18px; font-weight:bold;
-    text-shadow:0 0 10px #ffed4a, 0 0 20px #ff8800;
-    background:rgba(0,0,0,0.8); padding:8px 20px;
-    border:2px solid #ffed4a; border-radius:4px;
-    pointer-events:none;
+    display:flex; gap:8px;
+    background:rgba(0,0,0,0.85); padding:8px;
+    border:2px solid #0f0; border-radius:6px;
   }
+  .tool {
+    padding:8px 16px;
+    background:rgba(20,20,40,0.9);
+    border:2px solid #444;
+    color:#ccc; font-family:monospace; font-size:14px;
+    cursor:pointer; border-radius:4px;
+    user-select:none;
+    transition:all 0.1s;
+  }
+  .tool:hover {
+    background:rgba(40,40,80,0.9);
+    border-color:#888;
+  }
+  .tool.active {
+    background:rgba(0,80,0,0.6);
+    border-color:#ffed4a;
+    color:#ffed4a;
+    box-shadow:0 0 10px #ffed4a;
+    font-weight:bold;
+  }
+  .tool .key {
+    color:#888; font-size:11px; margin-left:4px;
+  }
+  .tool.active .key { color:#ffed4a; }
   #toast {
     position:absolute; top:80px; left:50%; transform:translateX(-50%);
     background:rgba(0,0,0,0.9); border:2px solid #ffed4a;
@@ -40,26 +63,20 @@ game_html = """
     display:none; text-shadow:0 0 5px #ffed4a;
     pointer-events:none;
   }
-  #help {
-    position:absolute; bottom:10px; right:10px;
-    color:#888; font-size:12px; pointer-events:none;
-    text-align:right; line-height:1.6;
-  }
 </style>
 </head>
 <body>
 <div id="hud">
   🪙 Gold: <b><span id="gold">0</span></b><br>
-  🌱 Benih: <b><span id="seeds">∞</span></b><br>
   🌾 Gandum: <b><span id="wheat">0</span></b><br>
-  <span style="font-size:12px;color:#0a0">Tekan <b style="color:#ffed4a">J</b> buat jual gandum</span>
+  <span style="font-size:12px;color:#0a0">Tekan <b style="color:#ffed4a">J</b> = jual semua</span>
 </div>
-<div id="help">
-  WASD / Arrow = Jalan<br>
-  E = Kerjakan (auto)<br>
-  J = Jual gandum
+<div id="toolbar">
+  <div class="tool active" data-tool="hoe">🪓 Hoe <span class="key">[1]</span></div>
+  <div class="tool" data-tool="seed">🌱 Seed <span class="key">[2]</span></div>
+  <div class="tool" data-tool="water">💧 Water <span class="key">[3]</span></div>
+  <div class="tool" data-tool="harvest">🌾 Harvest <span class="key">[4]</span></div>
 </div>
-<div id="action"></div>
 <div id="toast"></div>
 <div id="wrap">
   <canvas id="game" width="720" height="520"></canvas>
@@ -70,8 +87,8 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-const PX = 5;        // scale up pixel (lebih gede biar jelas)
-const TILE = 16;     // tile size
+const PX = 5;
+const TILE = 16;
 
 // ==== WORLD ====
 const WORLD_W = 30;
@@ -91,57 +108,113 @@ function generateWorld() {
     let row = [];
     for (let x=0; x<WORLD_W; x++) {
       let t = T_GRASS;
-      // Air di pinggir kanan
       if (x >= WORLD_W - 2) t = T_WATER;
-      // Beberapa pohon random (jarang)
       else if (Math.random() < 0.04) t = T_TREE;
       row.push(t);
     }
     world.push(row);
   }
-  // Area start bersih (tengah-bawah)
-  for (let y=WORLD_H-4; y<WORLD_H; y++)
-    for (let x=8; x<18; x++)
+  // Area farm start (bersih, tengah-bawah)
+  for (let y=WORLD_H-6; y<WORLD_H-2; y++)
+    for (let x=8; x<20; x++)
       world[y][x] = T_GRASS;
 
-  // Path horizontal di tengah
-  for (let x=0; x<WORLD_W; x++) world[11][x] = T_PATH;
+  // Path horizontal
+  for (let x=0; x<WORLD_W; x++) world[10][x] = T_PATH;
 }
 generateWorld();
 
-// Crop data
-const crops = {}; // key "x,y" → { stage: 0-3, watered: bool, timer: float }
+const crops = {};
 
 // ==== PLAYER ====
 const player = {
   x: 12 * TILE,
   y: 14 * TILE,
   w: 10, h: 14,
-  speed: 1.6, // lebih cepat
+  speed: 1.6,
   dir: 'down',
   animTimer: 0,
   walkFrame: 0,
 };
 
 // ==== INVENTORY ====
-const inv = {
-  gold: 0,
-  wheat: 0,
-  // benih unlimited! nggak perlu tracking
-};
+const inv = { gold: 0, wheat: 0 };
+
+// ==== TOOL ====
+let currentTool = 'hoe'; // hoe, seed, water, harvest
 
 // ==== CAMERA ====
 const camera = { x: 0, y: 0 };
 
-// ==== INPUT ====
+// ==== MOUSE ====
+let mouse = { x: 0, y: 0, tx: 0, ty: 0, inside: false };
+let isMouseDown = false;
+let lastDragTile = null;
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+  mouse.tx = Math.floor((mouse.x / PX + camera.x) / TILE);
+  mouse.ty = Math.floor((mouse.y / PX + camera.y) / TILE);
+  mouse.inside = true;
+
+  // Drag painting
+  if (isMouseDown) {
+    const tileKey = `${mouse.tx},${mouse.ty}`;
+    if (tileKey !== lastDragTile) {
+      applyTool(mouse.tx, mouse.ty);
+      lastDragTile = tileKey;
+    }
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  mouse.inside = false;
+  isMouseDown = false;
+  lastDragTile = null;
+});
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  isMouseDown = true;
+  applyTool(mouse.tx, mouse.ty);
+  lastDragTile = `${mouse.tx},${mouse.ty}`;
+});
+
+canvas.addEventListener('mouseup', () => {
+  isMouseDown = false;
+  lastDragTile = null;
+});
+
+// Klik tool
+document.querySelectorAll('.tool').forEach(el => {
+  el.addEventListener('click', () => {
+    currentTool = el.dataset.tool;
+    document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  });
+});
+
+// ==== KEYBOARD ====
 const keys = {};
 document.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
-  if (e.key === 'e' || e.key === 'E') doAction();
+  if (e.key === '1') selectTool('hoe');
+  if (e.key === '2') selectTool('seed');
+  if (e.key === '3') selectTool('water');
+  if (e.key === '4') selectTool('harvest');
   if (e.key === 'j' || e.key === 'J') sellWheat();
   if (['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key)) e.preventDefault();
 });
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+function selectTool(t) {
+  currentTool = t;
+  document.querySelectorAll('.tool').forEach(el => {
+    el.classList.toggle('active', el.dataset.tool === t);
+  });
+}
 
 // ==== TOAST ====
 function showToast(msg, color='#ffed4a') {
@@ -152,7 +225,53 @@ function showToast(msg, color='#ffed4a') {
   t.style.textShadow = `0 0 5px ${color}`;
   t.style.display = 'block';
   clearTimeout(t._timeout);
-  t._timeout = setTimeout(() => t.style.display = 'none', 1200);
+  t._timeout = setTimeout(() => t.style.display = 'none', 1000);
+}
+
+// ==== APPLY TOOL ====
+function applyTool(tx, ty) {
+  if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
+  const t = world[ty][tx];
+  const key = `${tx},${ty}`;
+
+  if (currentTool === 'hoe') {
+    if (t === T_GRASS) {
+      world[ty][tx] = T_FARMLAND;
+      crops[key] = { stage: -1 };
+      showToast('🪓 Dicangkul!', '#a07040');
+    }
+  } else if (currentTool === 'seed') {
+    if (t === T_FARMLAND) {
+      world[ty][tx] = T_CROP;
+      crops[key] = { stage: 0, watered: false, timer: 0 };
+      showToast('🌱 Ditanam!', '#5aff5a');
+    }
+  } else if (currentTool === 'water') {
+    if (t === T_CROP && crops[key] && crops[key].stage < 3) {
+      crops[key].watered = true;
+      showToast('💧 Disiram!', '#4a90e2');
+    }
+  } else if (currentTool === 'harvest') {
+    if (t === T_CROP && crops[key] && crops[key].stage >= 3) {
+      inv.wheat++;
+      world[ty][tx] = T_FARMLAND;
+      crops[key] = { stage: -1 };
+      showToast('🌾 Panen! +1', '#ffed4a');
+      updateHUD();
+    }
+  }
+}
+
+function sellWheat() {
+  if (inv.wheat === 0) {
+    showToast('❌ Nggak ada gandum', '#ff4444');
+    return;
+  }
+  const earn = inv.wheat * 10;
+  inv.gold += earn;
+  showToast(`🪙 +${earn} gold!`, '#ffed4a');
+  inv.wheat = 0;
+  updateHUD();
 }
 
 // ==== COLLISION ====
@@ -174,95 +293,11 @@ function canMoveTo(nx, ny) {
   );
 }
 
-// ==== FACING TILE ====
-function getFacingTile() {
-  const cx = Math.floor((player.x + player.w/2) / TILE);
-  const cy = Math.floor((player.y + player.h/2) / TILE);
-  let fx = cx, fy = cy;
-  if (player.dir === 'up') fy -= 1;
-  else if (player.dir === 'down') fy += 1;
-  else if (player.dir === 'left') fx -= 1;
-  else if (player.dir === 'right') fx += 1;
-  return { x: fx, y: fy };
-}
-
-// ==== ACTION (AUTO!) ====
-function doAction() {
-  const f = getFacingTile();
-  if (f.x < 0 || f.y < 0 || f.x >= WORLD_W || f.y >= WORLD_H) return;
-  const t = world[f.y][f.x];
-  const key = `${f.x},${f.y}`;
-
-  // Auto-detect apa yang harus dilakukan
-  if (t === T_GRASS) {
-    // Cangkul
-    world[f.y][f.x] = T_FARMLAND;
-    crops[key] = { stage: -1 };
-    showToast('🪓 Tanah dicangkul!', '#a07040');
-  } else if (t === T_FARMLAND) {
-    // Tanam benih
-    world[f.y][f.x] = T_CROP;
-    crops[key] = { stage: 0, watered: false, timer: 0 };
-    showToast('🌱 Benih ditanam!', '#5aff5a');
-  } else if (t === T_CROP) {
-    const c = crops[key];
-    if (!c) return;
-    if (c.stage >= 3) {
-      // Panen
-      inv.wheat++;
-      world[f.y][f.x] = T_FARMLAND;
-      crops[key] = { stage: -1 };
-      showToast('🌾 Panen! +1 gandum', '#ffed4a');
-      updateHUD();
-    } else if (!c.watered) {
-      // Siram (kalau belum disiram)
-      c.watered = true;
-      showToast('💧 Disiram! Tumbuh cepat', '#4a90e2');
-    } else {
-      showToast('⏳ Sedang tumbuh... tunggu ya', '#888');
-    }
-  } else {
-    showToast('❌ Nggak bisa dikerjakan', '#ff4444');
-  }
-}
-
-function sellWheat() {
-  if (inv.wheat === 0) {
-    showToast('❌ Nggak ada gandum buat dijual', '#ff4444');
-    return;
-  }
-  const earn = inv.wheat * 10;
-  inv.gold += earn;
-  showToast(`🪙 Jual ${inv.wheat} gandum → +${earn} gold!`, '#ffed4a');
-  inv.wheat = 0;
-  updateHUD();
-}
-
-// ==== ACTION HINT (emoji di tile depan) ====
-function getActionHint() {
-  const f = getFacingTile();
-  if (f.x < 0 || f.y < 0 || f.x >= WORLD_W || f.y >= WORLD_H) return null;
-  const t = world[f.y][f.x];
-  const key = `${f.x},${f.y}`;
-
-  if (t === T_GRASS) return { emoji: '🪓', text: 'E: Cangkul', color: '#a07040' };
-  if (t === T_FARMLAND) return { emoji: '🌱', text: 'E: Tanam', color: '#5aff5a' };
-  if (t === T_CROP) {
-    const c = crops[key];
-    if (!c) return null;
-    if (c.stage >= 3) return { emoji: '🌾', text: 'E: Panen!', color: '#ffed4a' };
-    if (!c.watered) return { emoji: '💧', text: 'E: Siram', color: '#4a90e2' };
-    return { emoji: '⏳', text: 'Tunggu tumbuh...', color: '#888' };
-  }
-  return null;
-}
-
 // ==== UPDATE ====
 let frameCount = 0;
 function update() {
   frameCount++;
 
-  // Gerak
   let dx = 0, dy = 0;
   if (keys['arrowleft'] || keys['a']) dx -= player.speed;
   if (keys['arrowright'] || keys['d']) dx += player.speed;
@@ -270,13 +305,10 @@ function update() {
   if (keys['arrowdown'] || keys['s']) dy += player.speed;
 
   if (dx !== 0 || dy !== 0) {
-    // Sliding movement
     if (dx !== 0 && canMoveTo(player.x + dx, player.y)) player.x += dx;
     if (dy !== 0 && canMoveTo(player.x, player.y + dy)) player.y += dy;
-
     if (Math.abs(dx) > Math.abs(dy)) player.dir = dx > 0 ? 'right' : 'left';
     else player.dir = dy > 0 ? 'down' : 'up';
-
     player.animTimer++;
     if (player.animTimer > 7) {
       player.animTimer = 0;
@@ -287,12 +319,12 @@ function update() {
     player.animTimer = 0;
   }
 
-  // Growth crops
+  // Growth
   Object.keys(crops).forEach(k => {
     const c = crops[k];
     if (c.stage >= 0 && c.stage < 3) {
       c.timer = (c.timer || 0) + (c.watered ? 2 : 1);
-      if (c.timer > 180) { // ~3 detik base, 1.5 kalau disiram
+      if (c.timer > 180) {
         c.stage++;
         c.timer = 0;
         c.watered = false;
@@ -308,17 +340,10 @@ function update() {
   camera.x = Math.max(0, Math.min(WORLD_W*TILE - canvas.width/PX, camera.x));
   camera.y = Math.max(0, Math.min(WORLD_H*TILE - canvas.height/PX, camera.y));
 
-  // Update action hint
-  const hint = getActionHint();
-  const aEl = document.getElementById('action');
-  if (hint) {
-    aEl.textContent = `${hint.emoji} ${hint.text}`;
-    aEl.style.color = hint.color;
-    aEl.style.borderColor = hint.color;
-    aEl.style.textShadow = `0 0 10px ${hint.color}, 0 0 20px ${hint.color}`;
-    aEl.style.display = 'block';
-  } else {
-    aEl.style.display = 'none';
+  // Update cursor tile (recalc karena camera berubah)
+  if (mouse.inside) {
+    mouse.tx = Math.floor((mouse.x / PX + camera.x) / TILE);
+    mouse.ty = Math.floor((mouse.y / PX + camera.y) / TILE);
   }
 }
 
@@ -327,7 +352,7 @@ function updateHUD() {
   document.getElementById('wheat').textContent = inv.wheat;
 }
 
-// ==== DRAW HELPERS ====
+// ==== DRAW ====
 function artPx(x, y, w, h, color) {
   ctx.fillStyle = color;
   ctx.fillRect(
@@ -337,7 +362,6 @@ function artPx(x, y, w, h, color) {
   );
 }
 
-// ==== DRAW TILES ====
 function drawTile(t, x, y) {
   const wx = x * TILE;
   const wy = y * TILE;
@@ -370,7 +394,6 @@ function drawTile(t, x, y) {
     artPx(wx, wy+15, TILE, 1, '#4a2f18');
     artPx(wx, wy+4, TILE, 1, '#8b5a2b');
     artPx(wx, wy+8, TILE, 1, '#8b5a2b');
-    // Kalau ada crop kosong (stage -1), tetap tanah
   } else if (t === T_CROP) {
     artPx(wx, wy, TILE, TILE, '#6b4423');
     artPx(wx, wy+3, TILE, 1, '#4a2f18');
@@ -396,7 +419,6 @@ function drawTile(t, x, y) {
       artPx(cx+3, cy-1, 1, 7, '#5aa55a');
       artPx(cx+1, cy-1, 2, 2, '#d4d44a');
     } else if (stage >= 3) {
-      // Gandum matang - glow!
       const glow = Math.sin(frameCount*0.1) * 0.3 + 0.7;
       ctx.shadowColor = '#ffed4a';
       ctx.shadowBlur = 15 * glow;
@@ -410,7 +432,6 @@ function drawTile(t, x, y) {
   }
 }
 
-// ==== DRAW HUMANOID ====
 function drawHumanoid(x, y, dir, walkFrame, color) {
   const skin = '#ffcc99';
   const shirt = color;
@@ -418,12 +439,10 @@ function drawHumanoid(x, y, dir, walkFrame, color) {
   const hair = '#3a2010';
   const bob = (walkFrame === 1 || walkFrame === 3) ? -1 : 0;
 
-  // Shadow
   ctx.globalAlpha = 0.3;
   artPx(x+2, y+15, 8, 2, '#000');
   ctx.globalAlpha = 1;
 
-  // HEAD
   artPx(x+3, y+0+bob, 6, 6, skin);
   if (dir === 'down') {
     artPx(x+3, y+0+bob, 6, 2, hair);
@@ -441,12 +460,10 @@ function drawHumanoid(x, y, dir, walkFrame, color) {
     artPx(x+7, y+3+bob, 1, 1, '#000');
   }
 
-  // BODY
   artPx(x+3, y+6+bob, 6, 5, shirt);
   artPx(x+2, y+7+bob, 1, 3, skin);
   artPx(x+9, y+7+bob, 1, 3, skin);
 
-  // LEGS
   const legY = y + 11 + bob;
   if (walkFrame === 1) {
     artPx(x+3, legY, 2, 5, pants);
@@ -462,40 +479,43 @@ function drawHumanoid(x, y, dir, walkFrame, color) {
   artPx(x+7, legY+4, 2, 1, '#000');
 }
 
-// ==== FACING HIGHLIGHT ====
-function drawFacingHighlight() {
-  const f = getFacingTile();
-  if (f.x < 0 || f.y < 0 || f.x >= WORLD_W || f.y >= WORLD_H) return;
-  const wx = f.x * TILE;
-  const wy = f.y * TILE;
-  const hint = getActionHint();
+// ==== DRAW CURSOR TILE HIGHLIGHT ====
+function drawCursorHighlight() {
+  if (!mouse.inside) return;
+  const tx = mouse.tx;
+  const ty = mouse.ty;
+  if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
 
-  const glow = Math.sin(frameCount*0.15) * 0.4 + 0.6;
-  ctx.strokeStyle = hint ? hint.color : '#ffff00';
-  ctx.globalAlpha = 0.6 + glow * 0.4;
+  const wx = tx * TILE;
+  const wy = ty * TILE;
+  const px = Math.floor((wx - camera.x) * PX);
+  const py = Math.floor((wy - camera.y) * PX);
+
+  // Warna berdasarkan tool & tile
+  let color = '#ffffff';
+  const t = world[ty][tx];
+  const key = `${tx},${ty}`;
+
+  if (currentTool === 'hoe' && t === T_GRASS) color = '#a07040';
+  else if (currentTool === 'seed' && t === T_FARMLAND) color = '#5aff5a';
+  else if (currentTool === 'water' && t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) color = '#4a90e2';
+  else if (currentTool === 'harvest' && t === T_CROP && crops[key] && crops[key].stage >= 3) color = '#ffed4a';
+  else color = '#666'; // nggak bisa dikerjakan
+
+  // Border
+  ctx.strokeStyle = color;
   ctx.lineWidth = 3;
-  ctx.strokeRect(
-    Math.floor((wx - camera.x) * PX) - 2,
-    Math.floor((wy - camera.y) * PX) - 2,
-    TILE * PX + 4,
-    TILE * PX + 4
-  );
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = 0.8;
+  ctx.strokeRect(px + 1, py + 1, TILE*PX - 2, TILE*PX - 2);
 
-  // Kalau ada hint, tampilkan emoji besar di atas tile
-  if (hint) {
-    const px = Math.floor((wx - camera.x) * PX);
-    const py = Math.floor((wy - camera.y) * PX);
-    ctx.font = `${TILE * PX * 0.8}px serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.globalAlpha = 0.9;
-    ctx.fillText(hint.emoji, px + TILE*PX/2, py + TILE*PX/2);
-    ctx.globalAlpha = 1;
-  }
+  // Fill semi-transparan
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = color;
+  ctx.fillRect(px, py, TILE*PX, TILE*PX);
+
+  ctx.globalAlpha = 1;
 }
 
-// ==== DRAW ====
 function draw() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -509,9 +529,9 @@ function draw() {
     for (let x=startX; x<endX; x++)
       drawTile(world[y][x], x, y);
 
-  drawFacingHighlight();
-
   drawHumanoid(player.x, player.y, player.dir, player.walkFrame, '#4a90e2');
+
+  drawCursorHighlight();
 
   // Vignette
   const grad = ctx.createRadialGradient(
@@ -536,4 +556,4 @@ loop();
 </html>
 """
 
-components.html(game_html, height=600)
+components.html(game_html, height=620)
