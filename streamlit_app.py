@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Pixel Farm RPG", page_icon="🌾", layout="wide")
-st.title("🌾 Pixel Farm RPG - Fixed")
+st.title("🌾 Pixel Farm RPG")
 st.caption("**WASD** jalan • **Klik** action • **1-8** tool • **I** inventory • **M** mute • **E** interaksi")
 
 game_html = r"""
@@ -29,7 +29,7 @@ game_html = r"""
   .tool.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; box-shadow:0 0 15px rgba(255,237,74,0.6); font-weight:bold; }
   .tool .num { position:absolute; top:1px; left:4px; font-size:9px; color:#666; }
   .tool.active .num { color:#ffed4a; }
-  #inv, #shop, #achPanel { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(15,15,25,0.97); border:3px solid #2a2a3e; border-radius:10px; padding:20px; display:none; box-shadow:0 0 40px rgba(0,0,0,0.9); z-index:100; min-width:440px; max-width:600px; }
+  #inv, #shop, #achPanel { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(15,15,25,0.97); border:3px solid #2a2a3e; border-radius:10px; padding:20px; display:none; box-shadow:0 0 40px rgba(0,0,0,0.9); z-index:100; min-width:440px; max-width:600px; max-height:80vh; overflow-y:auto; }
   #inv h2, #shop h2, #achPanel h2 { color:#ffed4a; margin:0 0 16px 0; font-size:18px; border-bottom:2px solid #2a2a3e; padding-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
   .closeBtn { background:none; border:1px solid #666; color:#ff6666; width:26px; height:26px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:14px; }
   .closeBtn:hover { border-color:#ff6666; background:rgba(255,50,50,0.2); }
@@ -57,27 +57,28 @@ game_html = r"""
   .achItem .emoji { font-size:28px; }
   .achItem .achName { color:#ffed4a; font-size:13px; font-weight:bold; }
   .achItem .achDesc { color:#aaa; font-size:10px; margin-top:2px; }
-  #dialog { position:absolute; bottom:90px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; font-size:15px; display:none; min-width:400px; text-align:center; box-shadow:0 0 30px rgba(255,237,74,0.4); border-radius:6px; max-width:600px; }
+  #dialog { position:absolute; bottom:90px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; font-size:15px; display:none; min-width:400px; text-align:center; box-shadow:0 0 30px rgba(255,237,74,0.4); border-radius:6px; max-width:600px; z-index:80; }
   #toast { position:absolute; top:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.9); border:2px solid #ffed4a; color:#ffed4a; padding:10px 20px; font-size:15px; display:none; box-shadow:0 0 20px rgba(255,237,74,0.5); border-radius:4px; pointer-events:none; font-weight:bold; z-index:200; }
-  #achPop { position:absolute; top:160px; left:50%; transform:translateX(-50%); background:linear-gradient(180deg, rgba(80,60,0,0.98), rgba(40,30,0,0.98)); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; display:none; box-shadow:0 0 40px rgba(255,237,74,0.8); border-radius:8px; pointer-events:none; z-index:300; min-width:300px; text-align:center; animation: achSlide 0.4s; }
-  @keyframes achSlide { from { transform: translate(-50%, -30px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+  #achPop { position:absolute; top:160px; left:50%; transform:translateX(-50%); background:linear-gradient(180deg, rgba(80,60,0,0.98), rgba(40,30,0,0.98)); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; display:none; box-shadow:0 0 40px rgba(255,237,74,0.8); border-radius:8px; pointer-events:none; z-index:300; min-width:300px; text-align:center; }
   #achPop .title { font-size:12px; color:#ffaa00; letter-spacing:3px; }
   #achPop .name { font-size:18px; font-weight:bold; margin:4px 0; }
   #achPop .desc { font-size:11px; color:#aaa; }
   #damageFlash { position:absolute; inset:0; background:radial-gradient(circle, transparent 30%, rgba(255,0,0,0.6) 100%); opacity:0; pointer-events:none; transition:opacity 0.2s; z-index:50; }
   #hint { position:absolute; bottom:12px; right:12px; font-size:10px; color:#555; text-align:right; line-height:1.6; }
-  #muteIcon { position:absolute; bottom:12px; left:12px; font-size:20px; cursor:pointer; padding:6px; user-select:none; transition:transform 0.2s; }
+  #muteIcon { position:absolute; bottom:12px; left:12px; font-size:20px; cursor:pointer; padding:6px; user-select:none; transition:transform 0.2s; z-index:20; }
   #muteIcon:hover { transform:scale(1.2); }
   #stats { position:absolute; top:12px; left:210px; font-size:11px; color:#888; background:rgba(0,0,0,0.6); padding:6px 10px; border-radius:4px; border:1px solid #222; pointer-events:none; line-height:1.5; }
   #saveIndicator { position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#5aff5a; padding:6px 14px; border-radius:4px; font-size:12px; border:2px solid #5aff5a; display:none; z-index:150; box-shadow:0 0 15px rgba(90,255,90,0.4); }
   #bedPrompt { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.92); border:3px solid #4a90e2; color:#4a90e2; padding:16px 28px; font-size:16px; display:none; text-align:center; border-radius:8px; box-shadow:0 0 30px rgba(74,144,226,0.5); z-index:150; pointer-events:none; }
-  #saveBtn { position:absolute; top:60px; left:12px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#5aff5a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; transition:all 0.15s; }
+  #saveBtn { position:absolute; top:60px; left:12px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#5aff5a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
   #saveBtn:hover { border-color:#5aff5a; box-shadow:0 0 10px rgba(90,255,90,0.4); }
-  #achBtn { position:absolute; top:60px; left:90px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ffed4a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; }
+  #achBtn { position:absolute; top:60px; left:90px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ffed4a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
   #achBtn:hover { border-color:#ffed4a; box-shadow:0 0 10px rgba(255,237,74,0.4); }
+  #shopBtn { position:absolute; top:60px; left:170px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ffd700; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
+  #shopBtn:hover { border-color:#ffd700; box-shadow:0 0 10px rgba(255,215,0,0.4); }
   #fishIndicator { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.9); border:3px solid #4a90e2; color:#4a90e2; padding:14px 24px; font-size:15px; display:none; text-align:center; border-radius:8px; box-shadow:0 0 30px rgba(74,144,226,0.5); z-index:150; pointer-events:none; min-width:280px; }
   #fishBar { width:220px; height:20px; background:rgba(0,0,0,0.7); border:2px solid #4a90e2; border-radius:3px; margin:10px auto 0; position:relative; overflow:hidden; }
-  #fishBar .fill { height:100%; background:linear-gradient(90deg, #4a90e2, #5aff5a); width:0%; transition:width 0.05s; }
+  #fishBar .fill { height:100%; background:linear-gradient(90deg, #4a90e2, #5aff5a); width:0%; }
   .seedPicker { display:flex; gap:6px; margin-top:10px; padding:8px; background:rgba(0,0,0,0.5); border-radius:6px; }
   .seedOpt { flex:1; padding:8px; text-align:center; background:rgba(30,30,50,0.7); border:2px solid #333; color:#aaa; font-family:inherit; font-size:11px; border-radius:4px; cursor:pointer; user-select:none; }
   .seedOpt.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; }
@@ -111,20 +112,21 @@ game_html = r"""
   <div id="seedPickerWrap">
     <div style="color:#ffed4a;font-size:12px;margin-bottom:6px;text-align:center">🌱 Pilih Benih:</div>
     <div class="seedPicker">
-      <div class="seedOpt" data-seed="wheat">🌾 Gandum<br><small>10g</small></div>
+      <div class="seedOpt active" data-seed="wheat">🌾 Gandum<br><small>10g</small></div>
       <div class="seedOpt" data-seed="corn">🌽 Jagung<br><small>25g</small></div>
       <div class="seedOpt" data-seed="tomato">🍅 Tomat<br><small>40g</small></div>
     </div>
   </div>
-  <div id="inv"><h2>🎒 Inventory <button class="closeBtn" onclick="toggleInventory()">✕</button></h2><div id="invGrid"></div><div id="invHint">Klik food buat makan · Klik item buat jual</div></div>
-  <div id="shop"><h2>🏪 Toko <button class="closeBtn" onclick="toggleShop()">✕</button></h2><div class="shopTabs"><div class="shopTab active" data-tab="buy">🛒 Beli</div><div class="shopTab" data-tab="sell">💰 Jual</div></div><div id="shopContent"></div></div>
-  <div id="achPanel"><h2>🏆 Achievement <button class="closeBtn" onclick="toggleAch()">✕</button></h2><div class="achGrid" id="achGrid"></div></div>
+  <div id="inv"><h2>🎒 Inventory <button class="closeBtn" id="closeInvBtn">✕</button></h2><div id="invGrid"></div><div id="invHint">Klik food buat makan · Klik item buat jual</div></div>
+  <div id="shop"><h2>🏪 Toko <button class="closeBtn" id="closeShopBtn">✕</button></h2><div class="shopTabs"><div class="shopTab active" data-tab="buy">🛒 Beli</div><div class="shopTab" data-tab="sell">💰 Jual</div></div><div id="shopContent"></div></div>
+  <div id="achPanel"><h2>🏆 Achievement <button class="closeBtn" id="closeAchBtn">✕</button></h2><div class="achGrid" id="achGrid"></div></div>
   <div id="dialog"></div>
   <div id="toast"></div>
   <div id="achPop"><div class="title">🏆 ACHIEVEMENT UNLOCKED</div><div class="name" id="achPopName"></div><div class="desc" id="achPopDesc"></div></div>
   <div id="muteIcon">🔊</div>
   <div id="saveBtn">💾 Save</div>
   <div id="achBtn">🏆 Trophy</div>
+  <div id="shopBtn">🏪 Shop</div>
   <div id="saveIndicator">💾 Tersimpan!</div>
   <div id="bedPrompt">🛏️<br>Tekan <b>E</b> untuk tidur<br><small>Skip ke pagi berikutnya</small></div>
   <div id="fishIndicator">🎣 <span id="fishStatus">Menunggu...</span><div id="fishBar"><div class="fill" id="fishBarFill"></div></div><div style="font-size:11px;color:#888;margin-top:6px" id="fishHint"></div></div>
@@ -132,6 +134,7 @@ game_html = r"""
 </div>
 
 <script>
+'use strict';
 // ============================================
 // ==== AUDIO ====
 // ============================================
@@ -148,7 +151,7 @@ function initAudio() {
     musicGain = audioCtx.createGain(); musicGain.gain.value = 0.20; musicGain.connect(masterGain);
     sfxGain = audioCtx.createGain(); sfxGain.gain.value = 0.4; sfxGain.connect(masterGain);
     startMusic('dawn');
-  } catch(e) { console.error('Audio init error:', e); }
+  } catch(e) { console.warn('Audio error:', e); }
 }
 function playTone(f, d, t='square', v=1, w=0) {
   if (!audioCtx || muted) return;
@@ -217,29 +220,31 @@ function startMusic(phase) {
 }
 function playMusicLoop() {
   if (!audioCtx || !musicPlaying) return;
-  const scale = scales[currentMusicPhase] || scales.day;
-  const isNight = currentMusicPhase === 'night';
-  const isDawn = currentMusicPhase === 'dawn';
-  const isInt = currentMusicPhase === 'interior';
-  const bT = isNight ? 0.7 : isDawn ? 0.55 : isInt ? 0.6 : 0.45;
-  const start = audioCtx.currentTime + 0.05;
-  const TN = 16, notes = [];
-  for (let i=0; i<TN; i++) {
-    const r = Math.random() < (isNight ? 0.4 : isInt ? 0.5 : 0.3);
-    if (r) { notes.push(null); continue; }
-    const n = scale[Math.floor(Math.random()*scale.length)];
-    const up = Math.random() < 0.15 ? 2 : 1;
-    notes.push(n*up);
-  }
-  notes.forEach((n, i) => {
-    if (n === null) return;
-    const t = start + i*bT;
-    const vol = isNight ? 0.3 : 0.45;
-    const type = isNight ? 'triangle' : (isDawn || isInt ? 'sine' : 'square');
-    scheduleNote(n, t, bT*0.85, type, vol);
-  });
-  for (let i=0; i<TN; i+=4) scheduleNote(scale[0]/4, start + i*bT, bT*3.5, 'triangle', 0.5);
-  musicTimer = setTimeout(() => { if (musicPlaying) playMusicLoop(); }, TN*bT*1000);
+  try {
+    const scale = scales[currentMusicPhase] || scales.day;
+    const isNight = currentMusicPhase === 'night';
+    const isDawn = currentMusicPhase === 'dawn';
+    const isInt = currentMusicPhase === 'interior';
+    const bT = isNight ? 0.7 : isDawn ? 0.55 : isInt ? 0.6 : 0.45;
+    const start = audioCtx.currentTime + 0.05;
+    const TN = 16, notes = [];
+    for (let i=0; i<TN; i++) {
+      const r = Math.random() < (isNight ? 0.4 : isInt ? 0.5 : 0.3);
+      if (r) { notes.push(null); continue; }
+      const n = scale[Math.floor(Math.random()*scale.length)];
+      const up = Math.random() < 0.15 ? 2 : 1;
+      notes.push(n*up);
+    }
+    notes.forEach((n, i) => {
+      if (n === null) return;
+      const t = start + i*bT;
+      const vol = isNight ? 0.3 : 0.45;
+      const type = isNight ? 'triangle' : (isDawn || isInt ? 'sine' : 'square');
+      scheduleNote(n, t, bT*0.85, type, vol);
+    });
+    for (let i=0; i<TN; i+=4) scheduleNote(scale[0]/4, start + i*bT, bT*3.5, 'triangle', 0.5);
+    musicTimer = setTimeout(() => { if (musicPlaying) playMusicLoop(); }, TN*bT*1000);
+  } catch(e) {}
 }
 function scheduleNote(f, st, dur, type, vol) {
   if (!audioCtx) return;
@@ -255,7 +260,7 @@ function scheduleNote(f, st, dur, type, vol) {
 }
 
 // ============================================
-// ==== GAME CONSTANTS ====
+// ==== CONSTANTS ====
 // ============================================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -273,7 +278,7 @@ const CROP_TYPES = {
 };
 
 // ============================================
-// ==== GAME STATE (declare early!) ====
+// ==== STATE (declare early!) ====
 // ============================================
 const camera = { x:0, y:0 };
 const player = {
@@ -302,9 +307,10 @@ let nearDoor = false;
 let nearBed = false;
 let nearShop = false;
 let nearWater = false;
+let nearShopTile = null; // posisi tile shop
 
 // ============================================
-// ==== UTILS (fungsi dasar dulu!) ====
+// ==== UTILS ====
 // ============================================
 function isSolid(tx, ty, w) {
   const ww = w || world;
@@ -347,7 +353,7 @@ const skyColors = {
 function getActiveWorld() { return currentInterior ? currentInterior.world : world; }
 
 // ============================================
-// ==== UI FUNCTIONS ====
+// ==== UI ====
 // ============================================
 let dialogTimer = 0;
 function showToast(msg, color='#ffed4a') {
@@ -358,7 +364,7 @@ function showToast(msg, color='#ffed4a') {
   t.style.boxShadow = `0 0 20px ${color}`;
   t.style.display = 'block';
   clearTimeout(t._timeout);
-  t._timeout = setTimeout(() => t.style.display = 'none', 1200);
+  t._timeout = setTimeout(() => t.style.display = 'none', 1400);
 }
 function showDialog(text) {
   const d = document.getElementById('dialog');
@@ -392,9 +398,12 @@ function generateWorld() {
     }
     world.push(row);
   }
+  // Clear village area
   for (let y=8; y<18; y++)
     for (let x=4; x<WORLD_W-4; x++) world[y][x] = T_GRASS;
+  // Jalan
   for (let x=0; x<WORLD_W; x++) { world[13][x] = T_PATH; world[14][x] = T_PATH; }
+  // Rumah
   function drawHouse(x0, y0) {
     for (let y=y0; y<y0+4; y++)
       for (let x=x0; x<x0+5; x++)
@@ -404,12 +413,26 @@ function generateWorld() {
   drawHouse(4, 9);
   drawHouse(17, 9);
   drawHouse(30, 9);
-  world[15][22] = T_SHOP;
+  
+  // ⚠️ SHOP: taruh di lokasi yg udah di-clear, JANGAN overwrite lagi
+  world[15][25] = T_SHOP;
+  // Kasih area sekitar shop jadi path biar mudah reach
+  world[15][24] = T_PATH;
+  world[15][26] = T_PATH;
+  world[16][25] = T_PATH; // bawah shop biar player bisa nempel
+  
+  // Lampu (skip tile shop & path)
   for (let x=6; x<WORLD_W-6; x+=8)
     if (world[12] && world[12][x] === T_GRASS) world[12][x] = T_LAMP;
+  
+  // Clear area spawn bawah (jangan hapus shop!)
   for (let y=18; y<WORLD_H-2; y++)
     for (let x=15; x<25; x++)
       if ([T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
+  // Clear spawn area sekitar shop juga
+  for (let y=15; y<18; y++)
+    for (let x=24; x<28; x++)
+      if (world[y] && [T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
 
   // Init trees
   for (let y=0; y<WORLD_H; y++)
@@ -494,7 +517,7 @@ function checkAchievements() {
 }
 
 // ============================================
-// ==== NPCs & ANIMALS (declare BEFORE use!) ====
+// ==== NPCs & ANIMALS ====
 // ============================================
 const ANIMAL_TYPES = {
   rabbit: { color:'#f0e0d0', hp:20, speed:0.4, dropAmt:2 },
@@ -511,7 +534,7 @@ function initNPCs() {
       dialog:'Malam hari ada serigala! Hati-hati.',
       targetX: 19, targetY: 15, moveTimer: 4, speed: 0.35, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
     { x: 32*TILE, y: 15*TILE, dir:'right', color:'#ffe66d', name:'Pak Tani',
-      dialog:'Ada toko di timur! Tekan E buat buka.',
+      dialog:'Ada toko di timur (tile 25)! Tekan tombol Shop atau E.',
       targetX: 32, targetY: 15, moveTimer: 5, speed: 0.25, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
   ];
 }
@@ -591,7 +614,7 @@ function updateFishing(dt) {
     fishing.timer -= dt;
     if (fishing.timer <= 0) {
       fishing.state = 'bite';
-      fishing.biteWindow = 1.2;
+      fishing.biteWindow = 1.5;
       sfxFishBite();
       showFishIndicator('🐟 IKAN! KLIK SEKARANG!', 100, 'CEPET KLIK!');
     }
@@ -604,29 +627,17 @@ function updateFishing(dt) {
       showToast('😢 Ikan kabur!', '#ff6666');
     }
   } else if (fishing.state === 'minigame') {
-    fishing.progress += dt * 0.5;
+    fishing.progress += dt * 0.4;
     fishing.targetTime -= dt;
-    if (fishing.targetTime <= 0) {
-      const diff = Math.abs(fishing.progress - 0.5);
-      let success = diff < 0.15;
-      if (success) {
-        const fishAmt = 1 + Math.floor(Math.random() * 2);
-        inventory.fish += fishAmt;
-        stats.fishCaught += fishAmt;
-        sfxFishCatch();
-        hideFishIndicator();
-        showToast(`🐟 Dapat ${fishAmt} ikan!`, '#5aff5a');
-        updateHUD(); checkAchievements();
-      } else {
-        sfxFishMiss();
-        hideFishIndicator();
-        showToast('😢 Ikan lepas!', '#ff6666');
-      }
-      fishing.active = false;
-    }
     const p = Math.min(1, fishing.progress);
     showFishIndicator('⚡ Timing!', p * 100,
-      p < 0.35 ? 'Terlalu cepet...' : p < 0.65 ? '✅ PAS!' : 'Terlalu lambat...');
+      p < 0.4 ? 'Terlalu cepet...' : p < 0.6 ? '✅ PAS! KLIK!' : 'Terlalu lambat...');
+    if (fishing.progress >= 1 || fishing.targetTime <= 0) {
+      fishing.active = false;
+      sfxFishMiss();
+      hideFishIndicator();
+      showToast('😢 Kelewatan!', '#ff6666');
+    }
   }
 }
 function clickFish() {
@@ -634,12 +645,11 @@ function clickFish() {
   if (fishing.state === 'bite') {
     fishing.state = 'minigame';
     fishing.progress = 0;
-    fishing.targetTime = 2.0;
-    showFishIndicator('⚡ Klik di waktu yang tepat!', 0, 'Tunggu...');
+    fishing.targetTime = 2.5;
+    showFishIndicator('⚡ Klik di zona tengah!', 0, 'Tunggu...');
   } else if (fishing.state === 'minigame') {
     const diff = Math.abs(fishing.progress - 0.5);
-    let success = diff < 0.15;
-    if (success) {
+    if (diff < 0.15) {
       const fishAmt = 1 + Math.floor(Math.random() * 2);
       inventory.fish += fishAmt;
       stats.fishCaught += fishAmt;
@@ -719,7 +729,7 @@ function renderShop() {
   });
 }
 function buyItem(item) {
-  if (gameGold < item.price) { sfxError(); return; }
+  if (gameGold < item.price) { sfxError(); showToast('❌ Gold nggak cukup', '#ff4444'); return; }
   gameGold -= item.price;
   const qty = item.qty || 1;
   inventory[item.key] = (inventory[item.key] || 0) + qty;
@@ -730,7 +740,7 @@ function buyItem(item) {
 }
 function sellItem(item) {
   const qty = item.qty || 1;
-  if ((inventory[item.key] || 0) < qty) { sfxError(); return; }
+  if ((inventory[item.key] || 0) < qty) { sfxError(); showToast('❌ Barang kurang', '#ff4444'); return; }
   inventory[item.key] -= qty;
   gameGold += item.price;
   if (gameGold > stats.maxGold) stats.maxGold = gameGold;
@@ -769,7 +779,7 @@ function toggleAch() {
 }
 
 // ============================================
-// ==== SAVE / LOAD ====
+// ==== SAVE/LOAD ====
 // ============================================
 function saveGame() {
   const data = {
@@ -825,10 +835,11 @@ function showSaveIndicator() {
 }
 
 // ============================================
-// ==== GAMEPLAY FUNCTIONS ====
+// ==== GAMEPLAY ====
 // ============================================
 function checkNearbyInteriorTiles() {
   nearDoor = false; nearBed = false; nearShop = false;
+  nearShopTile = null;
   const bodyPoints = [
     {x: player.x, y: player.y},
     {x: player.x + player.w - 1, y: player.y},
@@ -849,9 +860,22 @@ function checkNearbyInteriorTiles() {
       const tx = Math.floor(p.x / TILE), ty = Math.floor(p.y / TILE);
       if (tx>=0 && ty>=0 && tx<WORLD_W && ty<WORLD_H) {
         if (world[ty][tx] === T_HOUSE_DOOR) nearDoor = true;
-        if (world[ty][tx] === T_SHOP) nearShop = true;
+        if (world[ty][tx] === T_SHOP) { nearShop = true; nearShopTile = {x:tx, y:ty}; }
       }
     });
+    // Fallback: kalau player deket shop tapi belum overlap (radius 1.5 tile)
+    if (!nearShop) {
+      const ptx = Math.floor((player.x + player.w/2) / TILE);
+      const pty = Math.floor((player.y + player.h/2) / TILE);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const tx = ptx + dx, ty = pty + dy;
+          if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
+            if (world[ty][tx] === T_SHOP) { nearShop = true; nearShopTile = {x:tx, y:ty}; }
+          }
+        }
+      }
+    }
   }
 }
 function checkNearWater() {
@@ -1182,13 +1206,12 @@ document.addEventListener('keydown', e => {
   if (k === 'm') toggleMute();
   if (k === 'j') sellAll();
   if (k === 'e') { ensureAudio(); doInteractE(); }
+  if (k === 'b') { ensureAudio(); toggleShop(); } // shortcut shop
   if (k === 'escape') {
-    const invEl = document.getElementById('inv');
-    const shopEl = document.getElementById('shop');
-    const achEl = document.getElementById('achPanel');
-    if (invEl) invEl.style.display = 'none';
-    if (shopEl) shopEl.style.display = 'none';
-    if (achEl) achEl.style.display = 'none';
+    ['inv','shop','achPanel'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
     showInventory = false;
   }
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key)) e.preventDefault();
@@ -1227,9 +1250,6 @@ document.querySelectorAll('.seedOpt').forEach(el => {
     sfxClick();
   };
 });
-const firstSeed = document.querySelector('.seedOpt');
-if (firstSeed) firstSeed.classList.add('active');
-
 document.querySelectorAll('.shopTab').forEach(tab => {
   tab.onclick = () => {
     shopTab = tab.dataset.tab;
@@ -1238,15 +1258,21 @@ document.querySelectorAll('.shopTab').forEach(tab => {
   };
 });
 
-const saveBtnEl = document.getElementById('saveBtn');
-if (saveBtnEl) saveBtnEl.onclick = () => {
+// Button handlers
+const bindClick = (id, fn) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', fn);
+};
+bindClick('saveBtn', () => {
   if (saveGame()) { sfxSave(); showToast('💾 Tersimpan!', '#5aff5a'); }
   else showToast('❌ Gagal save', '#ff4444');
-};
-const achBtnEl = document.getElementById('achBtn');
-if (achBtnEl) achBtnEl.onclick = toggleAch;
-const muteEl = document.getElementById('muteIcon');
-if (muteEl) muteEl.onclick = toggleMute;
+});
+bindClick('achBtn', toggleAch);
+bindClick('shopBtn', toggleShop);
+bindClick('muteIcon', toggleMute);
+bindClick('closeInvBtn', toggleInventory);
+bindClick('closeShopBtn', toggleShop);
+bindClick('closeAchBtn', toggleAch);
 
 setInterval(() => { if (audioCtx) saveGame(); }, 30000);
 setTimeout(() => {
@@ -1278,7 +1304,6 @@ function update() {
     if (el) el.textContent = names[phase];
   }
 
-  // Player move
   let dx = 0, dy = 0;
   if (keys['arrowleft'] || keys['a']) dx -= player.speed;
   if (keys['arrowright'] || keys['d']) dx += player.speed;
@@ -1415,12 +1440,12 @@ function update() {
     });
   }
 
-  // Wolf spawn
-  if (phase === 'night' && !currentInterior) {
+  // Wolf spawn (kurangi agresif)
+  if (phase === 'night' && !currentInterior && time.day >= 1) {
     wolfSpawnTimer += dt;
-    if (wolfSpawnTimer > 8 && wolves.length < 5) { wolfSpawnTimer = 0; spawnWolf(); }
+    if (wolfSpawnTimer > 12 && wolves.length < 3) { wolfSpawnTimer = 0; spawnWolf(); }
     howlTimer += dt;
-    if (howlTimer > 15 && wolves.length > 0) { howlTimer = 0; sfxWolfHowl(); }
+    if (howlTimer > 20 && wolves.length > 0) { howlTimer = 0; sfxWolfHowl(); }
   } else { wolfSpawnTimer = 0; howlTimer = 0; }
 
   // Wolves
@@ -1437,10 +1462,10 @@ function update() {
         if (distP < 20) {
           w.attackTimer -= dt;
           if (w.attackTimer <= 0) {
-            w.attackTimer = 1.2;
-            player.hp = Math.max(0, player.hp - 8);
+            w.attackTimer = 1.5;
+            player.hp = Math.max(0, player.hp - 6);
             flashDamage(); sfxWolfBite();
-            showToast('🐺 Wolf attack! -8 HP', '#ff6666');
+            showToast('🐺 Wolf attack! -6 HP', '#ff6666');
           }
         }
       } else {
@@ -1461,7 +1486,6 @@ function update() {
       if (w.hurtFlash > 0) w.hurtFlash--;
     });
 
-    // Arrows
     arrows.forEach(arr => {
       arr.x += arr.vx; arr.y += arr.vy; arr.life--;
       for (const a of animals) {
@@ -1664,14 +1688,25 @@ function drawTile(t, x, y) {
     artPx(wx+11, wy+12, 1, 1, '#ffd700');
     ctx.shadowBlur = 0;
   } else if (t === T_SHOP) {
-    const glow = Math.sin(frameCount*0.08) * 0.2 + 0.8;
-    ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 20 * glow;
+    // Highlight kalau player deket
+    if (nearShop) {
+      const glow = Math.sin(frameCount*0.15)*0.4 + 0.6;
+      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 30*glow;
+    } else {
+      const glow = Math.sin(frameCount*0.08) * 0.2 + 0.8;
+      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 15 * glow;
+    }
+    // Bangunan toko
     artPx(wx, wy, TILE, TILE, '#ffd700');
-    artPx(wx, wy, TILE, 4, '#ff8800');
-    artPx(wx+2, wy+6, 12, 8, '#8b4513');
-    artPx(wx+3, wy+7, 4, 4, '#ffd700');
-    artPx(wx+9, wy+7, 4, 4, '#ffd700');
-    artPx(wx+7, wy+5, 2, 10, '#fff');
+    artPx(wx, wy, TILE, 4, '#ff8800'); // atap
+    artPx(wx+2, wy+6, 12, 8, '#8b4513'); // pintu kayu
+    artPx(wx+3, wy+7, 4, 4, '#ffe66d'); // jendela kiri
+    artPx(wx+9, wy+7, 4, 4, '#ffe66d'); // jendela kanan
+    // Sign "$"
+    artPx(wx+7, wy+4, 2, 9, '#fff');
+    artPx(wx+6, wy+4, 4, 2, '#fff');
+    artPx(wx+6, wy+9, 4, 2, '#fff');
+    artPx(wx+6, wy+6, 4, 2, '#fff');
     ctx.shadowBlur = 0;
   } else if (t === T_LAMP) {
     artPx(wx, wy, TILE, TILE, '#3a7d44');
@@ -1904,14 +1939,19 @@ function loop() {
     update();
     draw();
   } catch(err) {
-    console.error('Game loop error:', err);
-    // Draw error message di canvas
+    console.error('Loop error:', err);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, canvas.width, 80);
     ctx.fillStyle = '#f00';
-    ctx.font = '16px monospace';
+    ctx.font = '14px monospace';
     ctx.fillText('ERROR: ' + err.message, 20, 30);
   }
   requestAnimationFrame(loop);
 }
+
+// ============================================
+// ==== START ====
+// ============================================
 document.body.addEventListener('click', () => ensureAudio(), { once: false });
 updateHUD(); updateToolbarUI(); updateHUDBars(); loop();
 </script>
