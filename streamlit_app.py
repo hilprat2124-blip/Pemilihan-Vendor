@@ -1,328 +1,258 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import random
+import time
 
-st.set_page_config(page_title="Simple FPS", page_icon="🔫", layout="wide")
+st.set_page_config(page_title="Pokemon Mini", page_icon="🐾", layout="centered")
 
-st.title("🔫 Simple FPS - Target Shooter")
-st.caption("Klik area game dulu → **WASD** gerak, **Mouse** aim, **Klik** nembak, **R** reload")
-
-# Game HTML + JS
-fps_html = """
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  body { margin:0; background:#111; overflow:hidden; font-family: monospace; }
-  canvas { display:block; cursor: crosshair; }
-  #hud {
-    position:absolute; top:10px; left:10px; color:#0f0;
-    font-size:18px; text-shadow:0 0 5px #0f0; pointer-events:none;
-  }
-  #crosshair {
-    position:absolute; pointer-events:none; color:#0f0;
-    font-size:24px; transform:translate(-50%,-50%);
-    text-shadow:0 0 5px #0f0;
-  }
-  #gameover {
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    color:#f00; font-size:48px; text-align:center; display:none;
-    text-shadow:0 0 20px #f00;
-  }
-</style>
-</head>
-<body>
-<canvas id="game"></canvas>
-<div id="hud">HP: <span id="hp">100</span> | KILLS: <span id="kills">0</span> | AMMO: <span id="ammo">12</span>/12</div>
-<div id="crosshair">+</div>
-<div id="gameover">GAME OVER<br><small style="font-size:20px">Tekan R untuk restart</small></div>
-
-<script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-
-// Resize canvas
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight - 100;
-}
-resize();
-window.addEventListener('resize', resize);
-
-// State
-let keys = {};
-let mouseX = canvas.width/2;
-let mouseY = canvas.height/2;
-let player = { x: canvas.width/2, y: canvas.height/2, hp:100, speed:4 };
-let kills = 0;
-let ammo = 12;
-let maxAmmo = 12;
-let reloading = false;
-let enemies = [];
-let bullets = [];
-let particles = [];
-let gameOver = false;
-let lastEnemySpawn = 0;
-let spawnInterval = 1200; // ms
-
-// Input
-document.addEventListener('keydown', e => {
-  keys[e.key.toLowerCase()] = true;
-  if (e.key.toLowerCase() === 'r' && !reloading && ammo < maxAmmo && !gameOver) {
-    reload();
-  }
-  if (e.key.toLowerCase() === 'r' && gameOver) {
-    resetGame();
-  }
-});
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-
-canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  mouseX = e.clientX - rect.left;
-  mouseY = e.clientY - rect.top;
-  document.getElementById('crosshair').style.left = e.clientX + 'px';
-  document.getElementById('crosshair').style.top = (e.clientY - rect.top + canvas.offsetTop) + 'px';
-});
-
-canvas.addEventListener('mousedown', e => {
-  if (e.button === 0) shoot();
-});
-
-function shoot() {
-  if (gameOver || reloading || ammo <= 0) {
-    if (ammo <= 0 && !reloading) reload();
-    return;
-  }
-  ammo--;
-  updateHUD();
-
-  // Hitung arah dari player ke mouse
-  const dx = mouseX - player.x;
-  const dy = mouseY - player.y;
-  const dist = Math.hypot(dx, dy);
-
-  bullets.push({
-    x: player.x, y: player.y,
-    vx: dx/dist * 18, vy: dy/dist * 18,
-    life: 60
-  });
-
-  // Muzzle flash
-  for (let i=0;i<5;i++){
-    particles.push({
-      x:player.x, y:player.y,
-      vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6,
-      life:10, color:'#ff0'
-    });
-  }
+# ============ DATA POKEMON ============
+POKEDEX = {
+    "Charmander": {"emoji": "🔥", "type": "Api",  "hp": 39, "atk": 52, "moves": {"Cakar Api": 15, "Ember": 25, "Gigit": 18}},
+    "Squirtle":   {"emoji": "💧", "type": "Air",  "hp": 44, "atk": 48, "moves": {"Water Gun": 22, "Tackle": 15, "Bubble": 18}},
+    "Bulbasaur":  {"emoji": "🌿", "type": "Rumput","hp": 45, "atk": 49, "moves": {"Vine Whip": 20, "Tackle": 15, "Razor Leaf": 25}},
+    "Pikachu":    {"emoji": "⚡", "type": "Listrik","hp": 35, "atk": 55, "moves": {"Thunder Shock": 25, "Quick Attack": 18, "Tackle": 15}},
+    "Rattata":    {"emoji": "🐭", "type": "Normal", "hp": 30, "atk": 56, "moves": {"Tackle": 15, "Bite": 20, "Quick Attack": 18}},
+    "Pidgey":     {"emoji": "🐦", "type": "Terbang","hp": 40, "atk": 45, "moves": {"Peck": 18, "Gust": 20, "Tackle": 15}},
+    "Caterpie":   {"emoji": "🐛", "type": "Serangga","hp": 45, "atk": 30, "moves": {"Tackle": 15, "Bug Bite": 20}},
+    "Zubat":      {"emoji": "🦇", "type": "Terbang","hp": 40, "atk": 45, "moves": {"Leech Life": 20, "Bite": 18, "Gust": 15}},
 }
 
-function reload() {
-  reloading = true;
-  setTimeout(() => {
-    ammo = maxAmmo;
-    reloading = false;
-    updateHUD();
-  }, 1000);
-}
+WILD_POOL = ["Rattata", "Pidgey", "Caterpie", "Zubat"]
 
-function spawnEnemy() {
-  // Spawn di pinggir layar
-  const side = Math.floor(Math.random()*4);
-  let x, y;
-  if (side===0){ x=Math.random()*canvas.width; y=-30; }
-  else if (side===1){ x=canvas.width+30; y=Math.random()*canvas.height; }
-  else if (side===2){ x=Math.random()*canvas.width; y=canvas.height+30; }
-  else { x=-30; y=Math.random()*canvas.height; }
+# ============ STATE INIT ============
+def init_game():
+    st.session_state.player = None
+    st.session_state.team = []
+    st.session_state.pokedex_caught = set()
+    st.session_state.mode = "starter"  # starter | explore | battle | win | lose
+    st.session_state.log = []
+    st.session_state.wild = None
+    st.session_state.balls = 5
+    st.session_state.steps = 0
 
-  enemies.push({
-    x, y, r:20, hp:1,
-    speed:1.2 + Math.random()*0.8,
-    color:`hsl(${Math.random()*60},80%,50%)` // merah-kuning
-  });
-}
+if "player" not in st.session_state:
+    init_game()
 
-function updateHUD() {
-  document.getElementById('hp').textContent = player.hp;
-  document.getElementById('kills').textContent = kills;
-  document.getElementById('ammo').textContent = ammo;
-}
+def log(msg):
+    st.session_state.log.append(msg)
+    st.session_state.log = st.session_state.log[-8:]
 
-function resetGame() {
-  player.hp = 100;
-  kills = 0;
-  ammo = 12;
-  enemies = [];
-  bullets = [];
-  particles = [];
-  gameOver = false;
-  document.getElementById('gameover').style.display = 'none';
-  updateHUD();
-}
-
-function update(dt) {
-  if (gameOver) return;
-
-  // Movement
-  if (keys['w']) player.y -= player.speed;
-  if (keys['s']) player.y += player.speed;
-  if (keys['a']) player.x -= player.speed;
-  if (keys['d']) player.x += player.speed;
-  player.x = Math.max(15, Math.min(canvas.width-15, player.x));
-  player.y = Math.max(15, Math.min(canvas.height-15, player.y));
-
-  // Spawn musuh
-  const now = Date.now();
-  if (now - lastEnemySpawn > spawnInterval) {
-    spawnEnemy();
-    lastEnemySpawn = now;
-    // Makin lama makin susah
-    spawnInterval = Math.max(400, spawnInterval - 20);
-  }
-
-  // Update bullets
-  bullets.forEach(b => {
-    b.x += b.vx; b.y += b.vy; b.life--;
-  });
-  bullets = bullets.filter(b => b.life>0 && b.x>0 && b.x<canvas.width && b.y>0 && b.y<canvas.height);
-
-  // Update enemies — chase player
-  enemies.forEach(en => {
-    const dx = player.x - en.x;
-    const dy = player.y - en.y;
-    const d = Math.hypot(dx, dy) || 1;
-    en.x += dx/d * en.speed;
-    en.y += dy/d * en.speed;
-  });
-
-  // Bullet vs enemy collision
-  bullets.forEach(b => {
-    enemies.forEach(en => {
-      if (en.hp > 0 && Math.hypot(b.x-en.x, b.y-en.y) < en.r) {
-        en.hp = 0;
-        b.life = 0;
-        kills++;
-        updateHUD();
-        // blood particles
-        for (let i=0;i<12;i++){
-          particles.push({
-            x:en.x, y:en.y,
-            vx:(Math.random()-0.5)*8, vy:(Math.random()-0.5)*8,
-            life:25, color:'#f00'
-          });
-        }
-      }
-    });
-  });
-  enemies = enemies.filter(e => e.hp > 0);
-
-  // Enemy vs player
-  enemies.forEach(en => {
-    if (Math.hypot(en.x-player.x, en.y-player.y) < en.r + 12) {
-      player.hp -= 0.5;
-      if (player.hp <= 0) {
-        player.hp = 0;
-        gameOver = true;
-        document.getElementById('gameover').style.display = 'block';
-        updateHUD();
-      }
+def spawn_wild():
+    name = random.choice(WILD_POOL)
+    base = POKEDEX[name]
+    level = random.randint(2, 8)
+    wild = {
+        "name": name, "level": level,
+        "hp_max": base["hp"] + level * 3,
+        "hp": base["hp"] + level * 3,
+        "atk": base["atk"] + level * 2,
+        "moves": base["moves"],
+        "emoji": base["emoji"],
+        "type": base["type"],
     }
-  });
+    return wild
 
-  // Update particles
-  particles.forEach(p => {
-    p.x += p.vx; p.y += p.vy; p.life--;
-    p.vx *= 0.95; p.vy *= 0.95;
-  });
-  particles = particles.filter(p => p.life>0);
-}
+# ============ HEADER ============
+st.title("🐾 Pokemon Mini Adventure")
+st.caption("Pilih starter, jelajahi rumput liar, tangkap & lawan Pokemon!")
 
-function draw() {
-  // Background grid
-  ctx.fillStyle = '#111';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 1;
-  for (let x=0; x<canvas.width; x+=50){
-    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
-  }
-  for (let y=0; y<canvas.height; y+=50){
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
-  }
+# ============ SCREEN: PILIH STARTER ============
+if st.session_state.mode == "starter":
+    st.subheader("🎁 Pilih Pokemon Starter-mu!")
 
-  // Player
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, 14, 0, Math.PI*2);
-  ctx.fillStyle = '#0f0';
-  ctx.shadowColor = '#0f0'; ctx.shadowBlur = 15;
-  ctx.fill();
-  ctx.shadowBlur = 0;
+    cols = st.columns(3)
+    starters = ["Charmander", "Squirtle", "Bulbasaur"]
+    for i, name in enumerate(starters):
+        p = POKEDEX[name]
+        with cols[i]:
+            st.markdown(f"### {p['emoji']} {name}")
+            st.write(f"**Tipe:** {p['type']}")
+            st.write(f"❤️ HP: {p['hp']}")
+            st.write(f"⚔️ ATK: {p['atk']}")
+            st.write("**Moves:**")
+            for mv, dmg in p["moves"].items():
+                st.write(f"- {mv} ({dmg})")
+            if st.button(f"Pilih {name}", key=f"pick_{name}", use_container_width=True):
+                st.session_state.player = {
+                    "name": name, "level": 5,
+                    "hp_max": p["hp"] + 15,
+                    "hp": p["hp"] + 15,
+                    "atk": p["atk"] + 10,
+                    "moves": p["moves"],
+                    "emoji": p["emoji"], "type": p["type"],
+                }
+                st.session_state.team = [st.session_state.player]
+                st.session_state.pokedex_caught.add(name)
+                st.session_state.mode = "explore"
+                log(f"✨ Kamu memilih {p['emoji']} {name}!")
+                st.rerun()
 
-  // Arah hadap
-  const angle = Math.atan2(mouseY-player.y, mouseX-player.x);
-  ctx.beginPath();
-  ctx.moveTo(player.x, player.y);
-  ctx.lineTo(player.x + Math.cos(angle)*25, player.y + Math.sin(angle)*25);
-  ctx.strokeStyle = '#0f0'; ctx.lineWidth = 4;
-  ctx.stroke();
+# ============ SCREEN: EXPLORE ============
+elif st.session_state.mode == "explore":
+    player = st.session_state.player
 
-  // Bullets
-  bullets.forEach(b => {
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 3, 0, Math.PI*2);
-    ctx.fillStyle = '#ff0';
-    ctx.shadowColor = '#ff0'; ctx.shadowBlur = 10;
-    ctx.fill();
-  });
-  ctx.shadowBlur = 0;
+    # Kartu status
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.subheader(f"{player['emoji']} {player['name']} Lv.{player['level']}")
+        st.progress(player["hp"] / player["hp_max"],
+                    text=f"❤️ HP {player['hp']}/{player['hp_max']}")
+    with col2:
+        st.subheader("🎒 Inventory")
+        st.write(f"🔴 Pokeball: **{st.session_state.balls}**")
+        st.write(f"👣 Langkah: **{st.session_state.steps}**")
+        st.write(f"📖 Pokedex: **{len(st.session_state.pokedex_caught)}/{len(POKEDEX)}**")
 
-  // Enemies
-  enemies.forEach(en => {
-    ctx.beginPath();
-    ctx.arc(en.x, en.y, en.r, 0, Math.PI*2);
-    ctx.fillStyle = en.color;
-    ctx.shadowColor = '#f00'; ctx.shadowBlur = 15;
-    ctx.fill();
-    ctx.shadowBlur = 0;
+    st.divider()
 
-    // Mata musuh
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(en.x-6, en.y-4, 3, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(en.x+6, en.y-4, 3, 0, Math.PI*2); ctx.fill();
-  });
+    # Aksi
+    c1, c2, c3 = st.columns(3)
+    if c1.button("🌿 Jalan di Rumput", use_container_width=True):
+        st.session_state.steps += 1
+        if random.random() < 0.7:  # 70% ketemu
+            st.session_state.wild = spawn_wild()
+            st.session_state.mode = "battle"
+            log(f"⚠️ Wild {st.session_state.wild['emoji']} {st.session_state.wild['name']} muncul!")
+            st.rerun()
+        else:
+            log("🌾 Nggak ada apa-apa...")
+            st.rerun()
 
-  // Particles
-  particles.forEach(p => {
-    ctx.globalAlpha = p.life/25;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
-    ctx.fillStyle = p.color;
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
+    if c2.button("💊 Pakai Potion", use_container_width=True, disabled=player["hp"] >= player["hp_max"]):
+        heal = min(20, player["hp_max"] - player["hp"])
+        player["hp"] += heal
+        log(f"💊 Heal +{heal} HP!")
+        st.rerun()
 
-  // Crosshair beneran di canvas (fallback kalau div gagal)
-  ctx.strokeStyle = '#0f0';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(mouseX-10, mouseY); ctx.lineTo(mouseX-4, mouseY);
-  ctx.moveTo(mouseX+4, mouseY); ctx.lineTo(mouseX+10, mouseY);
-  ctx.moveTo(mouseX, mouseY-10); ctx.lineTo(mouseX, mouseY-4);
-  ctx.moveTo(mouseX, mouseY+4); ctx.lineTo(mouseX, mouseY+10);
-  ctx.stroke();
-}
+    if c3.button("🔄 Reset Game", use_container_width=True):
+        init_game()
+        st.rerun()
 
-let lastTime = 0;
-function loop(t) {
-  update(t - lastTime);
-  draw();
-  lastTime = t;
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-</script>
-</body>
-</html>
-"""
+    # Pokedex mini
+    st.divider()
+    st.subheader("📖 Pokedex")
+    caught = st.session_state.pokedex_caught
+    cols = st.columns(len(POKEDEX))
+    for i, (name, data) in enumerate(POKEDEX.items()):
+        with cols[i]:
+            if name in caught:
+                st.markdown(f"<div style='text-align:center;font-size:30px'>{data['emoji']}</div>", unsafe_allow_html=True)
+                st.caption(f"**{name}**")
+            else:
+                st.markdown("<div style='text-align:center;font-size:30px;opacity:0.2'>❓</div>", unsafe_allow_html=True)
+                st.caption("???")
 
-components.html(fps_html, height=700, scrolling=False)
+    # Log
+    st.divider()
+    st.subheader("📜 Log")
+    for l in reversed(st.session_state.log):
+        st.write(l)
+
+# ============ SCREEN: BATTLE ============
+elif st.session_state.mode == "battle":
+    player = st.session_state.player
+    wild = st.session_state.wild
+
+    # Tampilan Pokemon
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"### 🧑 Kamu")
+        st.markdown(f"<div style='font-size:60px'>{player['emoji']}</div>", unsafe_allow_html=True)
+        st.write(f"**{player['name']}** Lv.{player['level']}")
+        st.progress(player["hp"] / player["hp_max"], text=f"❤️ {player['hp']}/{player['hp_max']}")
+    with col2:
+        st.markdown("### 👹 Wild")
+        st.markdown(f"<div style='font-size:60px'>{wild['emoji']}</div>", unsafe_allow_html=True)
+        st.write(f"**{wild['name']}** Lv.{wild['level']}")
+        st.progress(wild["hp"] / wild["hp_max"], text=f"❤️ {wild['hp']}/{wild['hp_max']}")
+
+    st.divider()
+    st.subheader("⚔️ Pilih Gerakan")
+
+    move_cols = st.columns(len(player["moves"]))
+    for i, (mv, dmg) in enumerate(player["moves"].items()):
+        if move_cols[i].button(f"{mv}\n({dmg})", use_container_width=True):
+            # Player attack
+            dmg_dealt = dmg + random.randint(-3, 5)
+            wild["hp"] = max(0, wild["hp"] - dmg_dealt)
+            log(f"⚔️ {player['name']} pakai {mv}! -{dmg_dealt} HP")
+
+            if wild["hp"] <= 0:
+                log(f"🎉 {wild['name']} pingsan! Menang!")
+                player["level"] += 1
+                player["hp_max"] += 5
+                player["atk"] += 2
+                player["hp"] = min(player["hp_max"], player["hp"] + 10)
+                st.session_state.mode = "explore"
+                st.balloons()
+                st.rerun()
+
+            # Wild counter attack
+            wild_move = random.choice(list(wild["moves"].items()))
+            wild_dmg = wild_move[1] + random.randint(-2, 3)
+            player["hp"] = max(0, player["hp"] - wild_dmg)
+            log(f"👹 {wild['name']} pakai {wild_move[0]}! -{wild_dmg} HP")
+
+            if player["hp"] <= 0:
+                log("💀 Pokemon-mu pingsan...")
+                st.session_state.mode = "lose"
+                st.rerun()
+            st.rerun()
+
+    st.divider()
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button(f"🔴 Lempar Pokeball ({st.session_state.balls})",
+                     use_container_width=True,
+                     disabled=st.session_state.balls <= 0):
+            st.session_state.balls -= 1
+            # Chance tangkap = lebih tinggi kalau HP wild rendah
+            hp_ratio = wild["hp"] / wild["hp_max"]
+            catch_chance = 0.9 - hp_ratio * 0.6  # 30% - 90%
+            st.write(f"🎯 Chance: {catch_chance*100:.0f}%")
+            if random.random() < catch_chance:
+                log(f"✨ Berhasil menangkap {wild['name']}!")
+                st.session_state.pokedex_caught.add(wild["name"])
+                st.session_state.mode = "explore"
+                st.balloons()
+                time.sleep(0.5)
+                st.rerun()
+            else:
+                log(f"💨 {wild['name']} kabur dari Pokeball!")
+                # Wild counter
+                wild_move = random.choice(list(wild["moves"].items()))
+                wild_dmg = wild_move[1]
+                player["hp"] = max(0, player["hp"] - wild_dmg)
+                log(f"👹 {wild['name']} pakai {wild_move[0]}! -{wild_dmg} HP")
+                if player["hp"] <= 0:
+                    st.session_state.mode = "lose"
+                st.rerun()
+    with c2:
+        if st.button("🏃 Kabur", use_container_width=True):
+            if random.random() < 0.7:
+                log("🏃 Berhasil kabur!")
+                st.session_state.mode = "explore"
+            else:
+                log("❌ Gagal kabur!")
+                wild_move = random.choice(list(wild["moves"].items()))
+                wild_dmg = wild_move[1]
+                player["hp"] = max(0, player["hp"] - wild_dmg)
+                log(f"👹 {wild['name']} pakai {wild_move[0]}! -{wild_dmg} HP")
+                if player["hp"] <= 0:
+                    st.session_state.mode = "lose"
+            st.rerun()
+
+    # Log
+    st.divider()
+    st.subheader("📜 Log Pertarungan")
+    for l in reversed(st.session_state.log):
+        st.write(l)
+
+# ============ SCREEN: LOSE ============
+elif st.session_state.mode == "lose":
+    st.error("💀 Kamu kalah! Pokemon-mu pingsan...")
+    st.markdown("<div style='text-align:center;font-size:80px'>😵</div>", unsafe_allow_html=True)
+    st.write(f"📊 Total langkah: **{st.session_state.steps}**")
+    st.write(f"📖 Pokemon tertangkap: **{len(st.session_state.pokedex_caught)}**")
+    if st.button("🔄 Main Lagi", use_container_width=True):
+        init_game()
+        st.rerun()
