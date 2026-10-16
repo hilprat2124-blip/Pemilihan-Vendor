@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Pixel Farm RPG", page_icon="🌾", layout="wide")
-st.title("🌾 Pixel Farm RPG - Worker & Army")
+st.title("🌾 Pixel Farm RPG")
 st.caption("**WASD** jalan • **Klik** action • **1-9** tool • **H** hire • **R** army • **G** guard • **I** inventory • **B** shop • **E** interaksi")
 
 game_html = r"""
@@ -14,21 +14,80 @@ game_html = r"""
   body { margin:0; background:#0a0a1e; font-family:'Courier New',monospace; overflow:hidden; color:#fff; }
   #gameWrap { position:relative; width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; }
   canvas { image-rendering:pixelated; border:4px solid #2a2a3e; box-shadow:0 0 40px rgba(0,255,0,0.2); background:#000; cursor:crosshair; }
+  
+  /* ==== HUD LEFT (HP/Hunger) ==== */
   #hud { position:absolute; top:12px; left:12px; display:flex; flex-direction:column; gap:6px; pointer-events:none; font-size:13px; }
   .bar { width:180px; height:22px; background:rgba(0,0,0,0.7); border:2px solid #222; border-radius:3px; position:relative; overflow:hidden; }
   .bar .fill { height:100%; transition:width 0.3s; }
   .bar .label { position:absolute; top:0; left:8px; line-height:18px; font-size:12px; font-weight:bold; text-shadow:1px 1px 0 #000; }
   #hpFill { background:linear-gradient(180deg, #ff4444, #aa0000); }
   #hungerFill { background:linear-gradient(180deg, #ffaa00, #cc6600); }
+  
+  /* ==== HUD RIGHT (Time/Gold) ==== */
   #topRight { position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.75); border:2px solid #222; border-radius:4px; padding:8px 14px; font-size:13px; text-align:right; pointer-events:none; line-height:1.6; }
   #timeOfDay { color:#ffed4a; font-weight:bold; font-size:14px; text-shadow:0 0 8px currentColor; }
   #gold { color:#ffd700; font-weight:bold; text-shadow:0 0 8px #ffd700; }
+  
+  /* ==== STATS (middle top) ==== */
+  #stats { position:absolute; top:12px; left:210px; font-size:11px; color:#888; background:rgba(0,0,0,0.6); padding:6px 10px; border-radius:4px; border:1px solid #222; pointer-events:none; line-height:1.5; }
+  
+  /* ==== TOP TOOLBAR (menu buttons) — CLEAN BARU ==== */
+  #topToolbar {
+    position:absolute;
+    top:12px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    gap:4px;
+    background:rgba(0,0,0,0.85);
+    padding:6px;
+    border:2px solid #2a2a3e;
+    border-radius:8px;
+    z-index:20;
+  }
+  .menuBtn {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 14px;
+    background:rgba(30,30,50,0.9);
+    border:2px solid #333;
+    color:#888;
+    font-family:inherit;
+    font-size:12px;
+    font-weight:bold;
+    cursor:pointer;
+    border-radius:5px;
+    transition:all 0.15s;
+    user-select:none;
+    white-space:nowrap;
+  }
+  .menuBtn:hover {
+    background:rgba(50,50,80,0.9);
+    border-color:#666;
+    color:#fff;
+    transform:translateY(-2px);
+  }
+  #saveBtn { color:#5aff5a; }
+  #saveBtn:hover { border-color:#5aff5a; box-shadow:0 0 12px rgba(90,255,90,0.5); }
+  #achBtn { color:#ffed4a; }
+  #achBtn:hover { border-color:#ffed4a; box-shadow:0 0 12px rgba(255,237,74,0.5); }
+  #shopBtn { color:#ffd700; }
+  #shopBtn:hover { border-color:#ffd700; box-shadow:0 0 12px rgba(255,215,0,0.5); }
+  #hireBtn { color:#ffaa55; }
+  #hireBtn:hover { border-color:#ffaa55; box-shadow:0 0 12px rgba(255,170,85,0.5); }
+  #armyBtn { color:#ff5555; }
+  #armyBtn:hover { border-color:#ff5555; box-shadow:0 0 12px rgba(255,85,85,0.5); }
+  
+  /* ==== BOTTOM TOOLBAR (tools) ==== */
   #toolbar { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:5px; background:rgba(0,0,0,0.85); padding:8px; border:2px solid #2a2a3e; border-radius:8px; flex-wrap:wrap; justify-content:center; max-width:95%; }
   .tool { padding:7px 10px; background:rgba(30,30,50,0.9); border:2px solid #333; color:#888; font-family:inherit; font-size:11px; cursor:pointer; border-radius:5px; user-select:none; transition:all 0.15s; min-width:54px; text-align:center; position:relative; }
   .tool:hover { background:rgba(50,50,80,0.9); border-color:#666; color:#ccc; transform:translateY(-2px); }
   .tool.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; box-shadow:0 0 15px rgba(255,237,74,0.6); font-weight:bold; }
   .tool .num { position:absolute; top:1px; left:4px; font-size:9px; color:#666; }
   .tool.active .num { color:#ffed4a; }
+  
+  /* ==== PANELS ==== */
   #inv, #shop, #achPanel, #hirePanel, #armyPanel {
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     background:rgba(15,15,25,0.97); border:3px solid #2a2a3e; border-radius:10px;
@@ -68,8 +127,8 @@ game_html = r"""
   .achItem .achName { color:#ffed4a; font-size:13px; font-weight:bold; }
   .achItem .achDesc { color:#aaa; font-size:10px; margin-top:2px; }
   #dialog { position:absolute; bottom:90px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; font-size:15px; display:none; min-width:400px; text-align:center; box-shadow:0 0 30px rgba(255,237,74,0.4); border-radius:6px; max-width:600px; z-index:80; }
-  #toast { position:absolute; top:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.9); border:2px solid #ffed4a; color:#ffed4a; padding:10px 20px; font-size:15px; display:none; box-shadow:0 0 20px rgba(255,237,74,0.5); border-radius:4px; pointer-events:none; font-weight:bold; z-index:200; }
-  #achPop { position:absolute; top:160px; left:50%; transform:translateX(-50%); background:linear-gradient(180deg, rgba(80,60,0,0.98), rgba(40,30,0,0.98)); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; display:none; box-shadow:0 0 40px rgba(255,237,74,0.8); border-radius:8px; pointer-events:none; z-index:300; min-width:300px; text-align:center; }
+  #toast { position:absolute; top:140px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.9); border:2px solid #ffed4a; color:#ffed4a; padding:10px 20px; font-size:15px; display:none; box-shadow:0 0 20px rgba(255,237,74,0.5); border-radius:4px; pointer-events:none; font-weight:bold; z-index:200; }
+  #achPop { position:absolute; top:200px; left:50%; transform:translateX(-50%); background:linear-gradient(180deg, rgba(80,60,0,0.98), rgba(40,30,0,0.98)); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; display:none; box-shadow:0 0 40px rgba(255,237,74,0.8); border-radius:8px; pointer-events:none; z-index:300; min-width:300px; text-align:center; }
   #achPop .title { font-size:12px; color:#ffaa00; letter-spacing:3px; }
   #achPop .name { font-size:18px; font-weight:bold; margin:4px 0; }
   #achPop .desc { font-size:11px; color:#aaa; }
@@ -77,20 +136,12 @@ game_html = r"""
   #hint { position:absolute; bottom:12px; right:12px; font-size:10px; color:#555; text-align:right; line-height:1.6; }
   #muteIcon { position:absolute; bottom:12px; left:12px; font-size:20px; cursor:pointer; padding:6px; user-select:none; transition:transform 0.2s; z-index:20; }
   #muteIcon:hover { transform:scale(1.2); }
-  #stats { position:absolute; top:12px; left:210px; font-size:11px; color:#888; background:rgba(0,0,0,0.6); padding:6px 10px; border-radius:4px; border:1px solid #222; pointer-events:none; line-height:1.5; }
-  #saveIndicator { position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#5aff5a; padding:6px 14px; border-radius:4px; font-size:12px; border:2px solid #5aff5a; display:none; z-index:150; box-shadow:0 0 15px rgba(90,255,90,0.4); }
+  #saveIndicator { position:absolute; top:60px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#5aff5a; padding:6px 14px; border-radius:4px; font-size:12px; border:2px solid #5aff5a; display:none; z-index:150; box-shadow:0 0 15px rgba(90,255,90,0.4); }
   #bedPrompt { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:3px solid #5aff5a; color:#5aff5a; padding:20px 36px; font-size:18px; display:none; text-align:center; border-radius:10px; box-shadow:0 0 40px rgba(90,255,90,0.7); z-index:150; pointer-events:none; animation: bedPulse 1.2s infinite; }
   @keyframes bedPulse {
     0%, 100% { transform: translate(-50%,-50%) scale(1); }
     50% { transform: translate(-50%,-50%) scale(1.05); }
   }
-  .uiBtn { position:absolute; top:60px; background:rgba(30,30,50,0.9); border:2px solid #444; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
-  #saveBtn { left:12px; color:#5aff5a; }
-  #achBtn { left:90px; color:#ffed4a; }
-  #shopBtn { left:170px; color:#ffd700; }
-  #hireBtn { left:235px; color:#ffaa55; }
-  #armyBtn { left:315px; color:#ff5555; }
-  .uiBtn:hover { border-color:currentColor; box-shadow:0 0 10px currentColor; }
   #fishIndicator { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.9); border:3px solid #4a90e2; color:#4a90e2; padding:14px 24px; font-size:15px; display:none; text-align:center; border-radius:8px; box-shadow:0 0 30px rgba(74,144,226,0.5); z-index:150; pointer-events:none; min-width:280px; }
   #fishBar { width:220px; height:20px; background:rgba(0,0,0,0.7); border:2px solid #4a90e2; border-radius:3px; margin:10px auto 0; position:relative; overflow:hidden; }
   #fishBar .fill { height:100%; background:linear-gradient(90deg, #4a90e2, #5aff5a); width:0%; }
@@ -100,7 +151,7 @@ game_html = r"""
   #seedPickerWrap { position:absolute; bottom:110px; left:50%; transform:translateX(-50%); background:rgba(15,15,25,0.95); border:2px solid #ffed4a; border-radius:8px; padding:10px; display:none; z-index:80; }
   .unitRow { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(30,30,50,0.6); border:2px solid #333; border-radius:6px; margin-bottom:6px; }
   .unitRow.guard { border-color:#ffd700; box-shadow:0 0 8px rgba(255,215,0,0.4); }
-  .unitRow .info { display:flex; align-items:center; gap:10px; }
+  .unitRow .info { display:flex; align-items:center; gap:10px; flex:1; }
   .unitRow .emoji { font-size:22px; }
   .unitRow .name { color:#fff; font-size:13px; }
   .unitRow .status { color:#888; font-size:11px; }
@@ -114,6 +165,35 @@ game_html = r"""
   .unitRow button.guardBtn { background:linear-gradient(180deg, #5d5a2a, #3d3a1a); border-color:#ffd700; color:#ffd700; }
   .unitRow button.guardBtn:hover { background:linear-gradient(180deg, #7d7a3a, #5d5a2a); }
   .unitRow button.guardBtn.active { background:linear-gradient(180deg, #ffd700, #aa8800); color:#000; }
+  
+  /* Crop selector di hire panel */
+  .cropSelectRow {
+    display:flex; gap:8px; margin-top:12px; padding:12px;
+    background:rgba(0,0,0,0.4); border:2px dashed #444; border-radius:8px;
+  }
+  .cropSelectRow .cropOpt {
+    flex:1; padding:10px 8px; text-align:center;
+    background:rgba(30,30,50,0.7);
+    border:2px solid #333; color:#aaa;
+    font-family:inherit; font-size:12px;
+    border-radius:6px; cursor:pointer;
+    user-select:none; transition:all 0.15s;
+  }
+  .cropSelectRow .cropOpt:hover {
+    background:rgba(50,50,80,0.9);
+    border-color:#888;
+    color:#fff;
+  }
+  .cropSelectRow .cropOpt.active {
+    background:linear-gradient(180deg, #2a5d2a, #1a3d1a);
+    border-color:#ffed4a; color:#ffed4a;
+    box-shadow:0 0 10px rgba(255,237,74,0.4);
+    font-weight:bold;
+  }
+  .cropSelectRow .cropOpt .cropEmoji { font-size:24px; display:block; }
+  .cropSelectRow .cropOpt .cropName { font-size:11px; margin-top:4px; }
+  .cropSelectRow .cropOpt .cropStock { font-size:9px; color:#666; margin-top:2px; }
+  .cropSelectRow .cropOpt.active .cropStock { color:#ffed4a; }
 </style>
 </head>
 <body>
@@ -131,6 +211,17 @@ game_html = r"""
     <div style="font-size:11px;color:#ffaa55">👨‍🌾 <span id="workerCount">0</span> · ⚔️ <span id="armyCount">0</span> · 🛡️ <span id="guardCount">0</span>/2</div>
   </div>
   <div id="stats">🪵 <span id="wood">0</span> · 🍗 <span id="food">0</span> · 🌾 <span id="wheat">0</span> · 🏹 <span id="arrows">10</span></div>
+  
+  <!-- TOP TOOLBAR: menu buttons -->
+  <div id="topToolbar">
+    <button id="saveBtn" class="menuBtn">💾 Save</button>
+    <button id="achBtn" class="menuBtn">🏆 Trophy</button>
+    <button id="shopBtn" class="menuBtn">🏪 Shop</button>
+    <button id="hireBtn" class="menuBtn">👨‍🌾 Hire</button>
+    <button id="armyBtn" class="menuBtn">⚔️ Army</button>
+  </div>
+  
+  <!-- BOTTOM TOOLBAR: tools -->
   <div id="toolbar">
     <div class="tool" data-tool="hoe"><span class="num">1</span>🪓<br>Hoe</div>
     <div class="tool" data-tool="seed"><span class="num">2</span>🌱<br>Seed</div>
@@ -159,15 +250,10 @@ game_html = r"""
   <div id="toast"></div>
   <div id="achPop"><div class="title">🏆 ACHIEVEMENT UNLOCKED</div><div class="name" id="achPopName"></div><div class="desc" id="achPopDesc"></div></div>
   <div id="muteIcon">🔊</div>
-  <button id="saveBtn" class="uiBtn">💾 Save</button>
-  <button id="achBtn" class="uiBtn">🏆 Trophy</button>
-  <button id="shopBtn" class="uiBtn">🏪 Shop</button>
-  <button id="hireBtn" class="uiBtn">👨‍🌾 Hire</button>
-  <button id="armyBtn" class="uiBtn">⚔️ Army</button>
   <div id="saveIndicator">💾 Tersimpan!</div>
   <div id="bedPrompt">🛏️ <b>Tidur?</b><br>Tekan <b style="color:#ffed4a;font-size:22px">E</b> untuk tidur</div>
   <div id="fishIndicator">🎣 <span id="fishStatus">Menunggu...</span><div id="fishBar"><div class="fill" id="fishBarFill"></div></div><div style="font-size:11px;color:#888;margin-top:6px" id="fishHint"></div></div>
-  <div id="hint">WASD = jalan • Klik = action • 1-9 = tool<br>E = interaksi • B = shop • H = hire • R = army • G = guard</div>
+  <div id="hint">WASD = jalan • Klik = action • 1-9 = tool<br>B = shop • H = hire • R = army • G = guard</div>
 </div>
 
 <script>
@@ -320,38 +406,32 @@ const CROP_TYPES = {
   tomato: { name:'Tomat',  emoji:'🍅', price:40, seedPrice:25, growTime:800, color:'#ff4444' },
 };
 
-// ==== WORKER LIMITS ====
-const WORKER_MAX_FARMLAND = 6; // 1 petani max 6 blok farm
+const WORKER_MAX_FARMLAND = 6;
+const MAX_GUARDS = 2;
 
-// ==== ARMY TYPES (with ARMOR values) ====
 const ARMY_TYPES = {
   swordsman: {
     name: 'Swordsman', emoji: '⚔️', cost: 150,
-    desc: 'Melee fighter HP 60, DMG 15, Armor 2',
+    desc: 'Melee HP 60, DMG 15, Armor 2',
     color: '#8b3a3a', shirt: '#c0392b',
     hp: 60, hpMax: 60, dmg: 15, range: 22, speed: 1.2, attackDelay: 0.8,
-    armor: 2,
-    armorColor: '#b0b0b0', armorStyle: 'chain', // armor ringan abu-abu
+    armor: 2, armorColor: '#b0b0b0', armorStyle: 'chain',
   },
   archer: {
     name: 'Archer', emoji: '🏹', cost: 180,
-    desc: 'Ranged fighter HP 45, DMG 12, Armor 1',
+    desc: 'Ranged HP 45, DMG 12, Armor 1',
     color: '#3a5a8b', shirt: '#2980b9',
     hp: 45, hpMax: 45, dmg: 12, range: 130, speed: 1.0, attackDelay: 1.0,
-    armor: 1,
-    armorColor: '#5a3a1a', armorStyle: 'leather', // armor kulit coklat
+    armor: 1, armorColor: '#5a3a1a', armorStyle: 'leather',
   },
   knight: {
     name: 'Knight', emoji: '🛡️', cost: 400,
-    desc: 'Heavy tank HP 140, DMG 25, Armor 4',
+    desc: 'Tank HP 140, DMG 25, Armor 4',
     color: '#5a5a5a', shirt: '#7f8c8d',
     hp: 140, hpMax: 140, dmg: 25, range: 24, speed: 0.8, attackDelay: 0.6,
-    armor: 4,
-    armorColor: '#c0c0c0', armorStyle: 'plate', // armor plate silver
+    armor: 4, armorColor: '#c0c0c0', armorStyle: 'plate',
   },
 };
-
-const MAX_GUARDS = 2; // max 2 army bisa mendampingi player
 
 // ============================================
 // ==== STATE ====
@@ -367,6 +447,7 @@ const time = { totalMinutes: 6*60, day: 1, minutesPerSecond: 3 };
 const inventory = { wheat:0, corn:0, tomato:0, wood:0, food:0, seeds:5, seeds_corn:0, seeds_tomato:0, arrows:10, pelt:0, fish:0 };
 let gameGold = 500;
 let currentSeed = 'wheat';
+let workerSeed = 'wheat'; // benih yang ditanam oleh petani
 let currentTool = null;
 let showInventory = false;
 
@@ -431,7 +512,6 @@ const skyColors = {
 };
 function getActiveWorld() { return currentInterior ? currentInterior.world : world; }
 
-// ==== COUNT FARM LAND ====
 function countFarmlandTiles() {
   let count = 0;
   for (const key in crops) {
@@ -442,10 +522,13 @@ function countFarmlandTiles() {
   }
   return count;
 }
-// Hitung farmland per petani (yang udah punya worker assigned)
-// Simpel: 1 petani = max 6 farmland. Kalau farmland > worker*6, surplus idle
 function getWorkerFarmlandLimit() {
   return workers.length * WORKER_MAX_FARMLAND;
+}
+
+// ==== SEED KEY HELPER ====
+function getSeedKey(cropType) {
+  return 'seeds' + (cropType === 'wheat' ? '' : '_' + cropType);
 }
 
 // ============================================
@@ -512,7 +595,6 @@ function generateWorld() {
   world[15][26] = T_PATH;
   world[16][25] = T_PATH;
 
-  // Camp prajurit
   world[22][8] = T_CAMP;
   world[22][9] = T_CAMP;
   world[23][8] = T_CAMP;
@@ -699,7 +781,7 @@ function getWolfAt(tx, ty) {
 }
 
 // ============================================
-// ==== WORKER (PETANI) ====
+// ==== WORKER (PETANI) — FIXED STATE MACHINE ====
 // ============================================
 function hireWorker() {
   if (gameGold < 100) {
@@ -724,10 +806,13 @@ function hireWorker() {
     targetTile: null,
     salary: 5,
     salaryTimer: 60,
+    // ==== State machine tracking ====
+    currentCropType: workerSeed, // jenis benih yang akan ditanam
   });
   stats.workersHired++;
   sfxHire();
-  showToast(`👨‍🌾 Petani di-hire! (-100g) Max farm: ${workers.length*WORKER_MAX_FARMLAND} tile`, '#5aff5a');
+  const cropName = CROP_TYPES[workerSeed].name;
+  showToast(`👨‍🌾 Petani di-hire! Tanam: ${CROP_TYPES[workerSeed].emoji} ${cropName}`, '#5aff5a');
   updateHUD();
   checkAchievements();
   return true;
@@ -760,13 +845,16 @@ function updateWorkers(dt) {
 
     w.actionTimer -= dt;
 
+    // ==== STATE MACHINE ====
+    // Kalau nggak ada target atau idle, cari task baru
     if (w.state === 'idle' || !w.targetTile) {
       const task = findFarmTask(w);
       if (task) {
         w.targetTile = task.tile;
         w.state = task.type;
       } else {
-        if (Math.random() < 0.01) {
+        // Wander slight
+        if (Math.random() < 0.005) {
           w.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
         }
         return;
@@ -779,11 +867,13 @@ function updateWorkers(dt) {
       const d = Math.hypot(tx - w.x, ty - w.y);
 
       if (d < 6) {
+        // Udah nyampe target, kerjakan action
         if (w.actionTimer <= 0) {
           doWorkerAction(w);
           w.actionTimer = w.actionDelay;
         }
       } else {
+        // Jalan ke target
         const dx = (tx - w.x) / d * w.speed;
         const dy = (ty - w.y) / d * w.speed;
         if (canMoveTo(w.x + dx, w.y, 10, 14, world)) w.x += dx;
@@ -797,65 +887,87 @@ function updateWorkers(dt) {
   });
 }
 
+// ==== FIND TASK — PRIORITAS JELAS ====
 function findFarmTask(w) {
-  const farmlandCount = countFarmlandTiles();
-  const limit = getWorkerFarmlandLimit();
+  // Priority: 
+  // 1. HARVEST (kalau ada yang matang)
+  // 2. WATER (kalau ada crop yang belum disiram DAN stage < 3)
+  // 3. PLANT (kalau ada farmland kosong DAN ada benih)
+  // 4. HOE (kalau farmland < limit)
 
-  // Prioritas: harvest > water > plant > hoe
-  const tasks = [];
+  // 1. Cari crop yang siap panen
   for (const key in crops) {
     const [tx, ty] = key.split(',').map(Number);
     const c = crops[key];
     const t = world[ty] && world[ty][tx];
-    if (t !== T_CROP && t !== T_FARMLAND) continue;
-
     if (t === T_CROP && c.stage >= 3) {
-      tasks.push({ type: 'harvest', tile: {x:tx, y:ty}, priority: 1 });
-    } else if (t === T_CROP && !c.watered && c.stage < 3) {
-      tasks.push({ type: 'water', tile: {x:tx, y:ty}, priority: 2 });
-    } else if (t === T_FARMLAND && (!c || c.stage === -1)) {
-      if (inventory.seeds > 0) tasks.push({ type: 'plant', tile: {x:tx, y:ty}, priority: 3 });
+      return { type: 'harvest', tile: {x:tx, y:ty} };
     }
   }
 
-  // Cangkul HANYA kalau farmland < limit (per-worker max 6)
-  if (tasks.length === 0 && farmlandCount < limit) {
+  // 2. Cari crop yang belum disiram (dan belum matang)
+  for (const key in crops) {
+    const [tx, ty] = key.split(',').map(Number);
+    const c = crops[key];
+    const t = world[ty] && world[ty][tx];
+    if (t === T_CROP && c.stage < 3 && !c.watered) {
+      return { type: 'water', tile: {x:tx, y:ty} };
+    }
+  }
+
+  // 3. Cari farmland kosong buat ditanam
+  const seedKey = getSeedKey(w.currentCropType);
+  if (inventory[seedKey] > 0) {
+    for (const key in crops) {
+      const [tx, ty] = key.split(',').map(Number);
+      const c = crops[key];
+      const t = world[ty] && world[ty][tx];
+      if (t === T_FARMLAND && (!c || c.stage === -1)) {
+        return { type: 'plant', tile: {x:tx, y:ty} };
+      }
+    }
+  }
+
+  // 4. Cari grass buat dicangkul (kalau farmland < limit)
+  const farmlandCount = countFarmlandTiles();
+  const limit = getWorkerFarmlandLimit();
+  if (farmlandCount < limit) {
+    // Cari area dekat farmland yang udah ada
     const wtx = Math.floor(w.x / TILE);
     const wty = Math.floor(w.y / TILE);
-    for (let r = 1; r <= 5; r++) {
+    for (let r = 1; r <= 6; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
           const tx = wtx + dx, ty = wty + dy;
           if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
           if (world[ty][tx] === T_GRASS || world[ty][tx] === T_FLOWER) {
-            let nearbyFarmland = false;
-            for (let sy = -2; sy <= 2 && !nearbyFarmland; sy++) {
+            // Cek apakah dekat dengan farmland yang udah ada
+            let nearFarmland = false;
+            for (let sy = -2; sy <= 2 && !nearFarmland; sy++) {
               for (let sx = -2; sx <= 2; sx++) {
                 const nx = tx + sx, ny = ty + sy;
                 if (nx >= 0 && ny >= 0 && nx < WORLD_W && ny < WORLD_H) {
                   if (world[ny][nx] === T_FARMLAND || world[ny][nx] === T_CROP) {
-                    nearbyFarmland = true; break;
+                    nearFarmland = true; break;
                   }
                 }
               }
             }
-            // Di spawn awal (belum ada farmland), cangkul di area luas
-            if (nearbyFarmland || farmlandCount === 0) {
-              tasks.push({ type: 'hoe', tile: {x:tx, y:ty}, priority: 4 });
+            // Kalau belum ada farmland sama sekali, izinkan cangkul di mana aja deket worker
+            if (nearFarmland || farmlandCount === 0) {
+              return { type: 'hoe', tile: {x:tx, y:ty} };
             }
           }
         }
       }
-      if (tasks.length > 0) break;
     }
   }
 
-  if (tasks.length === 0) return null;
-  tasks.sort((a,b) => a.priority - b.priority);
-  return tasks[0];
+  return null;
 }
 
+// ==== DO WORKER ACTION — STATE MACHINE FIXED ====
 function doWorkerAction(w) {
   if (!w.targetTile) return;
   const tx = w.targetTile.x, ty = w.targetTile.y;
@@ -868,22 +980,38 @@ function doWorkerAction(w) {
       crops[key] = { stage: -1 };
       sfxHoe();
     }
-    w.targetTile = null; w.state = 'idle';
-  } else if (w.state === 'plant') {
-    if (t === T_FARMLAND && inventory.seeds > 0) {
-      inventory.seeds--;
+    // Reset target — cari task baru di frame berikutnya
+    w.targetTile = null;
+    w.state = 'idle';
+  } 
+  else if (w.state === 'plant') {
+    const seedKey = getSeedKey(w.currentCropType);
+    if (t === T_FARMLAND && inventory[seedKey] > 0) {
+      inventory[seedKey]--;
       world[ty][tx] = T_CROP;
-      crops[key] = { stage: 0, watered: false, timer: 0, type: 'wheat', growTime: 400 };
+      const cropInfo = CROP_TYPES[w.currentCropType] || CROP_TYPES.wheat;
+      crops[key] = { 
+        stage: 0, 
+        watered: false, 
+        timer: 0, 
+        type: w.currentCropType,
+        growTime: cropInfo.growTime,
+      };
+      stats.cropsPlanted.add(w.currentCropType);
       sfxSeed();
     }
-    w.targetTile = null; w.state = 'idle';
-  } else if (w.state === 'water') {
+    w.targetTile = null;
+    w.state = 'idle';
+  } 
+  else if (w.state === 'water') {
     if (t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) {
       crops[key].watered = true;
       sfxWater();
     }
-    w.targetTile = null; w.state = 'idle';
-  } else if (w.state === 'harvest') {
+    w.targetTile = null;
+    w.state = 'idle';
+  } 
+  else if (w.state === 'harvest') {
     if (t === T_CROP && crops[key] && crops[key].stage >= 3) {
       const cropType = crops[key].type || 'wheat';
       inventory[cropType] = (inventory[cropType] || 0) + 1;
@@ -894,12 +1022,13 @@ function doWorkerAction(w) {
       showToast(`👨‍🌾 ${w.name} panen ${CROP_TYPES[cropType].emoji}!`, '#5aff5a');
       updateHUD();
     }
-    w.targetTile = null; w.state = 'idle';
+    w.targetTile = null;
+    w.state = 'idle';
   }
 }
 
 // ============================================
-// ==== ARMY (PRAJURIT) ====
+// ==== ARMY ====
 // ============================================
 function recruitSoldier(type) {
   const at = ARMY_TYPES[type];
@@ -970,7 +1099,6 @@ function updateArmy(dt) {
   army.forEach(s => {
     if (s.hurtFlash > 0) s.hurtFlash--;
 
-    // Cari wolf terdekat dalam radius
     let nearestWolf = null;
     let nearestDist = 99999;
     wolves.forEach(w => {
@@ -983,13 +1111,10 @@ function updateArmy(dt) {
 
     s.attackTimer -= dt;
 
-    // ==== GUARD MODE: ikutin player ====
     if (s.guard) {
-      // Kalau ada musuh dekat player, chase wolf
       if (nearestWolf && nearestDist < 150) {
         chaseAndAttack(s, nearestWolf, dt);
       } else {
-        // Follow player, jaga jarak 30-40px
         const dxp = player.x - s.x;
         const dyp = player.y - s.y;
         const distP = Math.hypot(dxp, dyp);
@@ -1010,11 +1135,9 @@ function updateArmy(dt) {
       return;
     }
 
-    // ==== PATROL / CHASE MODE ====
     if (nearestWolf) {
       chaseAndAttack(s, nearestWolf, dt);
     } else {
-      // Wander around camp
       s.state = 'patrol';
       s.target = null;
       s.patrolTimer -= dt;
@@ -1094,6 +1217,7 @@ function renderHirePanel() {
   const canAfford = gameGold >= 100;
   const currentFarmland = countFarmlandTiles();
   const limit = getWorkerFarmlandLimit();
+  const workerSeedInfo = CROP_TYPES[workerSeed];
   let html = `
     <div class="shopItem">
       <div class="info">
@@ -1101,18 +1225,44 @@ function renderHirePanel() {
         <div>
           <div class="name">Petani</div>
           <div class="price">🪙 100 gold (upah 5g/menit)</div>
-          <div class="desc">Auto cangkul/tanam/siram/panen · Max 6 blok per petani</div>
-          <div class="slotInfo">Farmland sekarang: ${currentFarmland} / ${limit} tile</div>
+          <div class="desc">Auto kerja urut: cangkul → tanam → siram → panen</div>
+          <div class="slotInfo">Farmland: ${currentFarmland} / ${limit} tile</div>
         </div>
       </div>
       <button class="hireBtn" ${canAfford ? '' : 'disabled'}>Hire</button>
+    </div>
+    <div style="margin-top:16px;color:#ffed4a;font-weight:bold;text-align:center;font-size:14px">🌱 Pilih Benih yang ditanam petani:</div>
+    <div class="cropSelectRow" id="cropSelectRow">
+      <div class="cropOpt ${workerSeed === 'wheat' ? 'active' : ''}" data-crop="wheat">
+        <span class="cropEmoji">🌾</span>
+        <div class="cropName">Gandum</div>
+        <div class="cropStock">Stok: ${inventory.seeds}</div>
+      </div>
+      <div class="cropOpt ${workerSeed === 'corn' ? 'active' : ''}" data-crop="corn">
+        <span class="cropEmoji">🌽</span>
+        <div class="cropName">Jagung</div>
+        <div class="cropStock">Stok: ${inventory.seeds_corn}</div>
+      </div>
+      <div class="cropOpt ${workerSeed === 'tomato' ? 'active' : ''}" data-crop="tomato">
+        <span class="cropEmoji">🍅</span>
+        <div class="cropName">Tomat</div>
+        <div class="cropStock">Stok: ${inventory.seeds_tomato}</div>
+      </div>
     </div>
   `;
   if (workers.length > 0) {
     html += `<div style="margin-top:16px;border-top:2px solid #2a2a3e;padding-top:12px;color:#ffed4a;font-weight:bold">👨‍🌾 Petani Kamu (${workers.length})</div>`;
     workers.forEach((w, i) => {
-      const statusText = w.state === 'idle' ? 'Ngobrol...' : `Bekerja: ${w.state}`;
+      const stateLabels = {
+        idle: 'Nganggur...',
+        hoe: 'Mencangkul 🪓',
+        plant: 'Menanam 🌱',
+        water: 'Menyiram 💧',
+        harvest: 'Memanen 🌾',
+      };
+      const statusText = stateLabels[w.state] || w.state;
       const statusClass = w.state === 'idle' ? 'idle' : 'working';
+      const cropInfo = CROP_TYPES[w.currentCropType] || CROP_TYPES.wheat;
       html += `
         <div class="unitRow">
           <div class="info">
@@ -1120,6 +1270,7 @@ function renderHirePanel() {
             <div>
               <div class="name">${w.name}</div>
               <div class="status ${statusClass}">${statusText}</div>
+              <div class="slotInfo">Tanam: ${cropInfo.emoji} ${cropInfo.name}</div>
             </div>
           </div>
           <button data-fire-worker="${i}">Pecat</button>
@@ -1128,6 +1279,15 @@ function renderHirePanel() {
     });
   }
   c.innerHTML = html;
+  
+  // Bind crop selector
+  c.querySelectorAll('.cropOpt').forEach(el => {
+    el.onclick = () => {
+      workerSeed = el.dataset.crop;
+      sfxClick();
+      renderHirePanel();
+    };
+  });
   c.querySelectorAll('button[data-fire-worker]').forEach(btn => {
     btn.onclick = () => fireWorker(parseInt(btn.dataset.fireWorker));
   });
@@ -1139,7 +1299,7 @@ function renderArmyPanel() {
   const c = document.getElementById('armyContent');
   if (!c) return;
   const currentGuards = army.filter(s => s.guard).length;
-  let html = `<div style="color:#ffaa55;font-size:12px;margin-bottom:12px;text-align:center">🛡️ Prajurit pengawal: ${currentGuards}/${MAX_GUARDS} (tekan tombol 🛡️ buat set guard)</div>`;
+  let html = `<div style="color:#ffaa55;font-size:12px;margin-bottom:12px;text-align:center">🛡️ Pengawal: ${currentGuards}/${MAX_GUARDS} (klik 🛡️ buat set guard)</div>`;
   Object.entries(ARMY_TYPES).forEach(([key, at]) => {
     const canAfford = gameGold >= at.cost;
     html += `
@@ -1430,8 +1590,12 @@ function saveGame() {
     player: { x: player.x, y: player.y, hp: player.hp, hunger: player.hunger },
     time: { totalMinutes: time.totalMinutes, day: time.day },
     animals: animals.filter(a => !a.dead),
-    workers: workers.map(w => ({ x:w.x, y:w.y, name:w.name, salary:w.salary, state:w.state })),
+    workers: workers.map(w => ({ 
+      x:w.x, y:w.y, name:w.name, salary:w.salary, state:w.state,
+      currentCropType: w.currentCropType || 'wheat',
+    })),
     army: army.map(s => ({ x:s.x, y:s.y, type:s.type, hp:s.hp, name:s.name, guard: s.guard })),
+    workerSeed: workerSeed,
     achievements: Object.fromEntries(Object.entries(achievements).map(([k,a]) => [k, a.unlocked])),
     stats: { ...stats, cropsPlanted: [...stats.cropsPlanted] },
   };
@@ -1457,6 +1621,7 @@ function loadGame() {
     player.x = data.player.x; player.y = data.player.y;
     player.hp = data.player.hp; player.hunger = data.player.hunger;
     time.totalMinutes = data.time.totalMinutes; time.day = data.time.day;
+    if (data.workerSeed) workerSeed = data.workerSeed;
     animals = (data.animals || []).map(a => ({
       ...a, vx:0, vy:0, hurtFlash:0, dead:false, animTimer:0, walkFrame:0, pauseTimer:0, wanderTimer:0, wanderAngle:0
     }));
@@ -1471,6 +1636,7 @@ function loadGame() {
           dir: 'down', animTimer: 0, walkFrame: 0,
           state: 'idle', targetTile: null, salary: w.salary || 5,
           salaryTimer: 60,
+          currentCropType: w.currentCropType || 'wheat',
         });
       });
     }
@@ -1747,7 +1913,6 @@ function applyTool(tx, ty) {
   }
   if (!currentTool) return;
   if (currentTool === 'hoe') {
-    // Cek limit farmland
     if (t === T_GRASS || t === T_FLOWER) {
       const farmlandCount = countFarmlandTiles();
       const limit = getWorkerFarmlandLimit();
@@ -1761,7 +1926,7 @@ function applyTool(tx, ty) {
     } else sfxError();
   } else if (currentTool === 'seed') {
     if (t === T_FARMLAND) {
-      const seedKey = 'seeds' + (currentSeed === 'wheat' ? '' : '_' + currentSeed);
+      const seedKey = getSeedKey(currentSeed);
       if (inventory[seedKey] <= 0) {
         sfxError(); showToast(`❌ Benih ${CROP_TYPES[currentSeed].name} habis!`, '#ff4444');
         return;
@@ -1929,11 +2094,10 @@ document.addEventListener('keydown', e => {
   if (k === 'h') { ensureAudio(); toggleHirePanel(); }
   if (k === 'r') { ensureAudio(); toggleArmyPanel(); }
   if (k === 'g') {
-    // Quick set first non-guard soldier as guard
     ensureAudio();
     const available = army.findIndex(s => !s.guard);
     if (available >= 0) { toggleGuard(available); }
-    else if (army.length > 0) { toggleGuard(0); } // toggle off first guard
+    else if (army.length > 0) { toggleGuard(0); }
     else showToast('❌ Belum ada prajurit', '#ff4444');
   }
   if (k === 'e') { ensureAudio(); doInteractE(); }
@@ -2178,7 +2342,6 @@ function update() {
 
   if (!currentInterior) {
     wolves.forEach(w => {
-      // Cari target terdekat: prajurit dulu, terus player
       let target = player;
       let nearestDist = Math.hypot(player.x - w.x, player.y - w.y);
       army.forEach(s => {
@@ -2203,7 +2366,6 @@ function update() {
               flashDamage(); sfxWolfBite();
               showToast('🐺 Wolf attack! -6 HP', '#ff6666');
             } else {
-              // Serang prajurit — armor reduce damage!
               const rawDmg = 8;
               const actualDmg = Math.max(1, rawDmg - (target.armor || 0));
               target.hp -= actualDmg;
@@ -2238,7 +2400,6 @@ function update() {
       if (w.hurtFlash > 0) w.hurtFlash--;
     });
 
-    // Player arrows
     arrows.forEach(arr => {
       arr.x += arr.vx; arr.y += arr.vy; arr.life--;
       for (const a of animals) {
@@ -2273,7 +2434,6 @@ function update() {
     });
     arrows = arrows.filter(a => a.life > 0 && a.x > 0 && a.x < WORLD_W*TILE && a.y > 0 && a.y < WORLD_H*TILE);
 
-    // Army projectiles
     projectiles.forEach(p => {
       p.x += p.vx; p.y += p.vy; p.life--;
       for (const w of wolves) {
@@ -2535,74 +2695,49 @@ function drawHumanoid(x, y, dir, walkFrame, color, skin='#ffcc99', shirtColor=nu
   else { artPx(x+3, legY, 2, 5, pants); artPx(x+7, legY, 2, 5, pants); }
   artPx(x+3, legY+4, 2, 1, '#000'); artPx(x+7, legY+4, 2, 1, '#000');
 }
-
-// ==== ARMOR RENDERER ====
 function drawArmor(s, x, y, dir, bob) {
-  // Draw armor di atas body
   if (s.armorStyle === 'chain') {
-    // Chainmail: pattern abu-abu kotak-kotak
     const ac = s.armorColor;
-    // Chest
     artPx(x+3, y+6+bob, 6, 5, ac);
-    // Pattern dots
     for (let dy = 0; dy < 5; dy += 2) {
       for (let dx = 0; dx < 6; dx += 2) {
         artPx(x+3+dx, y+6+bob+dy, 1, 1, '#7a7a7a');
       }
     }
-    // Shoulder pads
     artPx(x+2, y+6+bob, 1, 3, '#8a8a8a');
     artPx(x+9, y+6+bob, 1, 3, '#8a8a8a');
-    // Helm
     artPx(x+3, y+1+bob, 6, 3, ac);
-    artPx(x+4, y+3+bob, 1, 1, '#000'); // mata masih kelihatan
+    artPx(x+4, y+3+bob, 1, 1, '#000');
     artPx(x+7, y+3+bob, 1, 1, '#000');
   } else if (s.armorStyle === 'leather') {
-    // Leather armor coklat
     const ac = s.armorColor;
     artPx(x+3, y+6+bob, 6, 5, ac);
-    // Tali/strap
     artPx(x+4, y+6+bob, 1, 5, '#3a2010');
     artPx(x+7, y+6+bob, 1, 5, '#3a2010');
-    // Belt
     artPx(x+2, y+10+bob, 8, 1, '#3a2010');
-    // Hood/hijau
     artPx(x+2, y-1+bob, 8, 2, '#2a5a2a');
     artPx(x+3, y+0+bob, 6, 1, '#3a6a3a');
   } else if (s.armorStyle === 'plate') {
-    // Plate armor silver
     const ac = s.armorColor;
-    // Body plate
     artPx(x+2, y+6+bob, 8, 6, ac);
-    // Highlight
     artPx(x+3, y+7+bob, 6, 1, '#e0e0e0');
-    // Shoulder plate besar
     artPx(x+1, y+6+bob, 2, 4, ac);
     artPx(x+9, y+6+bob, 2, 4, ac);
     artPx(x+1, y+6+bob, 2, 1, '#e0e0e0');
     artPx(x+9, y+6+bob, 2, 1, '#e0e0e0');
-    // Helm dengan visor
     artPx(x+3, y+0+bob, 6, 4, ac);
-    artPx(x+4, y+2+bob, 4, 1, '#333'); // visor slit
+    artPx(x+4, y+2+bob, 4, 1, '#333');
     artPx(x+3, y+3+bob, 6, 1, '#a0a0a0');
   }
 }
-
 function drawWorker(w) {
-  // Shadow
   ctx.globalAlpha = 0.3;
   artPx(w.x+2, w.y+15, 8, 2, '#000');
   ctx.globalAlpha = 1;
-  
-  // Body
   drawHumanoid(w.x, w.y, w.dir, w.walkFrame, w.color, '#e8b088', w.shirt);
-  
-  // Topi petani
   const bob = (w.walkFrame === 1 || w.walkFrame === 3) ? -1 : 0;
   artPx(w.x+1, w.y-1+bob, 10, 1, '#d4a76a');
   artPx(w.x+3, w.y-2+bob, 6, 1, '#b8905a');
-  
-  // Icon tool di atas kepala
   if (w.state === 'hoe' || w.state === 'plant' || w.state === 'water' || w.state === 'harvest') {
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
@@ -2610,53 +2745,34 @@ function drawWorker(w) {
     ctx.fillText(icon, Math.floor((w.x - camera.x)*PX) + 5*PX, Math.floor((w.y - camera.y)*PX) - 4);
   }
 }
-
 function drawSoldier(s) {
-  // Flash merah kalau kena hit
   if (s.hurtFlash > 0 && s.hurtFlash % 4 < 2) {
     ctx.globalAlpha = 0.5;
     artPx(s.x+2, s.y+15, 8, 2, '#000');
-    // Draw full red rectangle body
     artPx(s.x+3, s.y, 6, 16, '#ff0000');
     ctx.globalAlpha = 1;
     return;
   }
-
   const bob = (s.walkFrame === 1 || s.walkFrame === 3) ? -1 : 0;
-  
-  // Shadow
   ctx.globalAlpha = 0.3;
   artPx(s.x+2, s.y+15, 8, 2, '#000');
   ctx.globalAlpha = 1;
-  
-  // Body (tanpa helm/armor dulu)
-  const skinTone = '#e8b088', shirt = s.shirt, pants = '#3a3a3a', hair = '#3a2010';
-  // Head
+  const skinTone = '#e8b088', shirt = s.shirt, pants = '#3a3a3a';
   artPx(s.x+3, s.y+0+bob, 6, 6, skinTone);
-  // Body
   artPx(s.x+3, s.y+6+bob, 6, 5, shirt);
-  // Arms
   artPx(s.x+2, s.y+7+bob, 1, 3, skinTone);
   artPx(s.x+9, s.y+7+bob, 1, 3, skinTone);
-  // Legs
   const legY = s.y + 11 + bob;
   if (s.walkFrame === 1) { artPx(s.x+3, legY, 2, 5, pants); artPx(s.x+7, legY+1, 2, 4, pants); }
   else if (s.walkFrame === 3) { artPx(s.x+3, legY+1, 2, 4, pants); artPx(s.x+7, legY, 2, 5, pants); }
   else { artPx(s.x+3, legY, 2, 5, pants); artPx(s.x+7, legY, 2, 5, pants); }
   artPx(s.x+3, legY+4, 2, 1, '#000'); artPx(s.x+7, legY+4, 2, 1, '#000');
-  
-  // === ARMOR ===
   drawArmor(s, s.x, s.y, s.dir, bob);
-  
-  // === WEAPON ===
-  const wpnBob = bob;
   if (s.type === 'swordsman') {
-    // Sword di tangan kanan
-    artPx(s.x+10, s.y+6+wpnBob, 1, 8, '#c0c0c0'); // blade
-    artPx(s.x+10, s.y+13+wpnBob, 1, 1, '#ffd700'); // pommel
-    artPx(s.x+9, s.y+13+wpnBob, 3, 1, '#8b4513'); // guard
+    artPx(s.x+10, s.y+6+bob, 1, 8, '#c0c0c0');
+    artPx(s.x+10, s.y+13+bob, 1, 1, '#ffd700');
+    artPx(s.x+9, s.y+13+bob, 3, 1, '#8b4513');
   } else if (s.type === 'archer') {
-    // Bow di tangan kiri
     ctx.strokeStyle = '#8b5a2b';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -2669,16 +2785,12 @@ function drawSoldier(s) {
     );
     ctx.stroke();
   } else if (s.type === 'knight') {
-    // Sword besar + shield
-    artPx(s.x+10, s.y+5+wpnBob, 2, 10, '#e0e0e0');
-    artPx(s.x+10, s.y+14+wpnBob, 2, 1, '#ffd700');
-    artPx(s.x+9, s.y+14+wpnBob, 4, 1, '#8b4513');
-    // Shield di kiri
-    artPx(s.x-1, s.y+6+wpnBob, 3, 5, '#8b3a3a');
-    artPx(s.x, s.y+7+wpnBob, 1, 3, '#ffd700');
+    artPx(s.x+10, s.y+5+bob, 2, 10, '#e0e0e0');
+    artPx(s.x+10, s.y+14+bob, 2, 1, '#ffd700');
+    artPx(s.x+9, s.y+14+bob, 4, 1, '#8b4513');
+    artPx(s.x-1, s.y+6+bob, 3, 5, '#8b3a3a');
+    artPx(s.x, s.y+7+bob, 1, 3, '#ffd700');
   }
-  
-  // Guard indicator (lingkaran emas)
   if (s.guard) {
     const pulse = Math.sin(frameCount*0.15) * 0.3 + 0.7;
     ctx.strokeStyle = '#ffd700';
@@ -2694,13 +2806,10 @@ function drawSoldier(s) {
     );
     ctx.stroke();
     ctx.globalAlpha = 1;
-    // Ikon mahkota di atas
     ctx.font = '10px serif';
     ctx.textAlign = 'center';
     ctx.fillText('🛡️', Math.floor((s.x - camera.x)*PX) + 5*PX, Math.floor((s.y - camera.y)*PX) - 6);
   }
-  
-  // HP bar
   if (s.hp < s.hpMax) {
     const hw = 20;
     const hx = Math.floor((s.x - camera.x)*PX) - 5;
