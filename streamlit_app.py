@@ -15,7 +15,6 @@ game_html = r"""
   #gameWrap { position:relative; width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; }
   canvas { image-rendering:pixelated; border:4px solid #2a2a3e; box-shadow:0 0 40px rgba(0,255,0,0.2); background:#000; cursor:crosshair; }
   
-  /* ==== HUD LEFT (HP/Hunger) ==== */
   #hud { position:absolute; top:12px; left:12px; display:flex; flex-direction:column; gap:6px; pointer-events:none; font-size:13px; }
   .bar { width:180px; height:22px; background:rgba(0,0,0,0.7); border:2px solid #222; border-radius:3px; position:relative; overflow:hidden; }
   .bar .fill { height:100%; transition:width 0.3s; }
@@ -23,51 +22,26 @@ game_html = r"""
   #hpFill { background:linear-gradient(180deg, #ff4444, #aa0000); }
   #hungerFill { background:linear-gradient(180deg, #ffaa00, #cc6600); }
   
-  /* ==== HUD RIGHT (Time/Gold) ==== */
   #topRight { position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.75); border:2px solid #222; border-radius:4px; padding:8px 14px; font-size:13px; text-align:right; pointer-events:none; line-height:1.6; }
   #timeOfDay { color:#ffed4a; font-weight:bold; font-size:14px; text-shadow:0 0 8px currentColor; }
   #gold { color:#ffd700; font-weight:bold; text-shadow:0 0 8px #ffd700; }
   
-  /* ==== STATS (middle top) ==== */
   #stats { position:absolute; top:12px; left:210px; font-size:11px; color:#888; background:rgba(0,0,0,0.6); padding:6px 10px; border-radius:4px; border:1px solid #222; pointer-events:none; line-height:1.5; }
   
-  /* ==== TOP TOOLBAR (menu buttons) — CLEAN BARU ==== */
   #topToolbar {
-    position:absolute;
-    top:12px;
-    left:50%;
-    transform:translateX(-50%);
-    display:flex;
-    gap:4px;
-    background:rgba(0,0,0,0.85);
-    padding:6px;
-    border:2px solid #2a2a3e;
-    border-radius:8px;
-    z-index:20;
+    position:absolute; top:80px; left:50%; transform:translateX(-50%);
+    display:flex; gap:4px; background:rgba(0,0,0,0.85);
+    padding:6px; border:2px solid #2a2a3e; border-radius:8px; z-index:20;
   }
   .menuBtn {
-    display:flex;
-    align-items:center;
-    gap:6px;
-    padding:7px 14px;
-    background:rgba(30,30,50,0.9);
-    border:2px solid #333;
-    color:#888;
-    font-family:inherit;
-    font-size:12px;
-    font-weight:bold;
-    cursor:pointer;
-    border-radius:5px;
-    transition:all 0.15s;
-    user-select:none;
-    white-space:nowrap;
+    display:flex; align-items:center; gap:6px;
+    padding:7px 14px; background:rgba(30,30,50,0.9);
+    border:2px solid #333; color:#888;
+    font-family:inherit; font-size:12px; font-weight:bold;
+    cursor:pointer; border-radius:5px;
+    transition:all 0.15s; user-select:none; white-space:nowrap;
   }
-  .menuBtn:hover {
-    background:rgba(50,50,80,0.9);
-    border-color:#666;
-    color:#fff;
-    transform:translateY(-2px);
-  }
+  .menuBtn:hover { background:rgba(50,50,80,0.9); border-color:#666; color:#fff; transform:translateY(-2px); }
   #saveBtn { color:#5aff5a; }
   #saveBtn:hover { border-color:#5aff5a; box-shadow:0 0 12px rgba(90,255,90,0.5); }
   #achBtn { color:#ffed4a; }
@@ -79,7 +53,6 @@ game_html = r"""
   #armyBtn { color:#ff5555; }
   #armyBtn:hover { border-color:#ff5555; box-shadow:0 0 12px rgba(255,85,85,0.5); }
   
-  /* ==== BOTTOM TOOLBAR (tools) ==== */
   #toolbar { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:5px; background:rgba(0,0,0,0.85); padding:8px; border:2px solid #2a2a3e; border-radius:8px; flex-wrap:wrap; justify-content:center; max-width:95%; }
   .tool { padding:7px 10px; background:rgba(30,30,50,0.9); border:2px solid #333; color:#888; font-family:inherit; font-size:11px; cursor:pointer; border-radius:5px; user-select:none; transition:all 0.15s; min-width:54px; text-align:center; position:relative; }
   .tool:hover { background:rgba(50,50,80,0.9); border-color:#666; color:#ccc; transform:translateY(-2px); }
@@ -87,7 +60,6 @@ game_html = r"""
   .tool .num { position:absolute; top:1px; left:4px; font-size:9px; color:#666; }
   .tool.active .num { color:#ffed4a; }
   
-  /* ==== PANELS ==== */
   #inv, #shop, #achPanel, #hirePanel, #armyPanel {
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     background:rgba(15,15,25,0.97); border:3px solid #2a2a3e; border-radius:10px;
@@ -166,7 +138,6 @@ game_html = r"""
   .unitRow button.guardBtn:hover { background:linear-gradient(180deg, #7d7a3a, #5d5a2a); }
   .unitRow button.guardBtn.active { background:linear-gradient(180deg, #ffd700, #aa8800); color:#000; }
   
-  /* Crop selector di hire panel */
   .cropSelectRow {
     display:flex; gap:8px; margin-top:12px; padding:12px;
     background:rgba(0,0,0,0.4); border:2px dashed #444; border-radius:8px;
@@ -212,7 +183,6 @@ game_html = r"""
   </div>
   <div id="stats">🪵 <span id="wood">0</span> · 🍗 <span id="food">0</span> · 🌾 <span id="wheat">0</span> · 🏹 <span id="arrows">10</span></div>
   
-  <!-- TOP TOOLBAR: menu buttons -->
   <div id="topToolbar">
     <button id="saveBtn" class="menuBtn">💾 Save</button>
     <button id="achBtn" class="menuBtn">🏆 Trophy</button>
@@ -221,7 +191,6 @@ game_html = r"""
     <button id="armyBtn" class="menuBtn">⚔️ Army</button>
   </div>
   
-  <!-- BOTTOM TOOLBAR: tools -->
   <div id="toolbar">
     <div class="tool" data-tool="hoe"><span class="num">1</span>🪓<br>Hoe</div>
     <div class="tool" data-tool="seed"><span class="num">2</span>🌱<br>Seed</div>
@@ -447,7 +416,7 @@ const time = { totalMinutes: 6*60, day: 1, minutesPerSecond: 3 };
 const inventory = { wheat:0, corn:0, tomato:0, wood:0, food:0, seeds:5, seeds_corn:0, seeds_tomato:0, arrows:10, pelt:0, fish:0 };
 let gameGold = 500;
 let currentSeed = 'wheat';
-let workerSeed = 'wheat'; // benih yang ditanam oleh petani
+let workerSeed = 'wheat';
 let currentTool = null;
 let showInventory = false;
 
@@ -525,8 +494,6 @@ function countFarmlandTiles() {
 function getWorkerFarmlandLimit() {
   return workers.length * WORKER_MAX_FARMLAND;
 }
-
-// ==== SEED KEY HELPER ====
 function getSeedKey(cropType) {
   return 'seeds' + (cropType === 'wheat' ? '' : '_' + cropType);
 }
@@ -781,7 +748,7 @@ function getWolfAt(tx, ty) {
 }
 
 // ============================================
-// ==== WORKER (PETANI) — FIXED STATE MACHINE ====
+// ==== WORKER (PETANI) ====
 // ============================================
 function hireWorker() {
   if (gameGold < 100) {
@@ -806,8 +773,7 @@ function hireWorker() {
     targetTile: null,
     salary: 5,
     salaryTimer: 60,
-    // ==== State machine tracking ====
-    currentCropType: workerSeed, // jenis benih yang akan ditanam
+    currentCropType: workerSeed,
   });
   stats.workersHired++;
   sfxHire();
@@ -829,7 +795,6 @@ function fireWorker(index) {
 
 function updateWorkers(dt) {
   workers.forEach(w => {
-    // Salary
     w.salaryTimer -= dt;
     if (w.salaryTimer <= 0) {
       w.salaryTimer = 60;
@@ -845,15 +810,12 @@ function updateWorkers(dt) {
 
     w.actionTimer -= dt;
 
-    // ==== STATE MACHINE ====
-    // Kalau nggak ada target atau idle, cari task baru
     if (w.state === 'idle' || !w.targetTile) {
       const task = findFarmTask(w);
       if (task) {
         w.targetTile = task.tile;
         w.state = task.type;
       } else {
-        // Wander slight
         if (Math.random() < 0.005) {
           w.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
         }
@@ -867,13 +829,11 @@ function updateWorkers(dt) {
       const d = Math.hypot(tx - w.x, ty - w.y);
 
       if (d < 6) {
-        // Udah nyampe target, kerjakan action
         if (w.actionTimer <= 0) {
           doWorkerAction(w);
           w.actionTimer = w.actionDelay;
         }
       } else {
-        // Jalan ke target
         const dx = (tx - w.x) / d * w.speed;
         const dy = (ty - w.y) / d * w.speed;
         if (canMoveTo(w.x + dx, w.y, 10, 14, world)) w.x += dx;
@@ -887,15 +847,15 @@ function updateWorkers(dt) {
   });
 }
 
-// ==== FIND TASK — PRIORITAS JELAS ====
+// ==== FIND TASK — PRIORITAS: TANEM DULU ====
 function findFarmTask(w) {
-  // Priority: 
-  // 1. HARVEST (kalau ada yang matang)
-  // 2. WATER (kalau ada crop yang belum disiram DAN stage < 3)
-  // 3. PLANT (kalau ada farmland kosong DAN ada benih)
-  // 4. HOE (kalau farmland < limit)
+  // PRIORITY:
+  // 1. HARVEST (yang udah matang)
+  // 2. PLANT (tanam di farmland kosong) — INI YANG DIPRIORITASKAN
+  // 3. HOE (cangkul lahan baru kalau masih ada slot)
+  // 4. WATER (baru siram kalau semua farmland udah ketanem)
 
-  // 1. Cari crop yang siap panen
+  // === 1. HARVEST ===
   for (const key in crops) {
     const [tx, ty] = key.split(',').map(Number);
     const c = crops[key];
@@ -905,17 +865,7 @@ function findFarmTask(w) {
     }
   }
 
-  // 2. Cari crop yang belum disiram (dan belum matang)
-  for (const key in crops) {
-    const [tx, ty] = key.split(',').map(Number);
-    const c = crops[key];
-    const t = world[ty] && world[ty][tx];
-    if (t === T_CROP && c.stage < 3 && !c.watered) {
-      return { type: 'water', tile: {x:tx, y:ty} };
-    }
-  }
-
-  // 3. Cari farmland kosong buat ditanam
+  // === 2. PLANT — kalau ada farmland kosong DAN ada benih ===
   const seedKey = getSeedKey(w.currentCropType);
   if (inventory[seedKey] > 0) {
     for (const key in crops) {
@@ -928,11 +878,10 @@ function findFarmTask(w) {
     }
   }
 
-  // 4. Cari grass buat dicangkul (kalau farmland < limit)
+  // === 3. HOE — cangkul lahan baru kalau masih ada slot ===
   const farmlandCount = countFarmlandTiles();
   const limit = getWorkerFarmlandLimit();
   if (farmlandCount < limit) {
-    // Cari area dekat farmland yang udah ada
     const wtx = Math.floor(w.x / TILE);
     const wty = Math.floor(w.y / TILE);
     for (let r = 1; r <= 6; r++) {
@@ -942,7 +891,6 @@ function findFarmTask(w) {
           const tx = wtx + dx, ty = wty + dy;
           if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
           if (world[ty][tx] === T_GRASS || world[ty][tx] === T_FLOWER) {
-            // Cek apakah dekat dengan farmland yang udah ada
             let nearFarmland = false;
             for (let sy = -2; sy <= 2 && !nearFarmland; sy++) {
               for (let sx = -2; sx <= 2; sx++) {
@@ -954,7 +902,6 @@ function findFarmTask(w) {
                 }
               }
             }
-            // Kalau belum ada farmland sama sekali, izinkan cangkul di mana aja deket worker
             if (nearFarmland || farmlandCount === 0) {
               return { type: 'hoe', tile: {x:tx, y:ty} };
             }
@@ -964,10 +911,20 @@ function findFarmTask(w) {
     }
   }
 
+  // === 4. WATER — BARU siram setelah tanem & cangkul selesai ===
+  // (Setelah semua farmland ketanem, cek yang perlu disiram)
+  for (const key in crops) {
+    const [tx, ty] = key.split(',').map(Number);
+    const c = crops[key];
+    const t = world[ty] && world[ty][tx];
+    if (t === T_CROP && c.stage < 3 && !c.watered) {
+      return { type: 'water', tile: {x:tx, y:ty} };
+    }
+  }
+
   return null;
 }
 
-// ==== DO WORKER ACTION — STATE MACHINE FIXED ====
 function doWorkerAction(w) {
   if (!w.targetTile) return;
   const tx = w.targetTile.x, ty = w.targetTile.y;
@@ -980,7 +937,6 @@ function doWorkerAction(w) {
       crops[key] = { stage: -1 };
       sfxHoe();
     }
-    // Reset target — cari task baru di frame berikutnya
     w.targetTile = null;
     w.state = 'idle';
   } 
@@ -1217,7 +1173,6 @@ function renderHirePanel() {
   const canAfford = gameGold >= 100;
   const currentFarmland = countFarmlandTiles();
   const limit = getWorkerFarmlandLimit();
-  const workerSeedInfo = CROP_TYPES[workerSeed];
   let html = `
     <div class="shopItem">
       <div class="info">
@@ -1225,7 +1180,7 @@ function renderHirePanel() {
         <div>
           <div class="name">Petani</div>
           <div class="price">🪙 100 gold (upah 5g/menit)</div>
-          <div class="desc">Auto kerja urut: cangkul → tanam → siram → panen</div>
+          <div class="desc">Auto: cangkul → tanam → siram → panen</div>
           <div class="slotInfo">Farmland: ${currentFarmland} / ${limit} tile</div>
         </div>
       </div>
@@ -1280,7 +1235,6 @@ function renderHirePanel() {
   }
   c.innerHTML = html;
   
-  // Bind crop selector
   c.querySelectorAll('.cropOpt').forEach(el => {
     el.onclick = () => {
       workerSeed = el.dataset.crop;
