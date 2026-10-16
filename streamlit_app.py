@@ -1,1905 +1,290 @@
-import streamlit as st
-import streamlit.components.v1 as components
-
-st.set_page_config(page_title="Pixel Farm RPG", page_icon="🌾", layout="wide")
-st.title("🌾 Pixel Farm RPG")
-st.caption("**WASD** jalan • **Klik** action • **1-9** tool • **H** hire • **R** army • **G** guard • **I** inventory • **B** shop • **E** interaksi")
-
-game_html = r"""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  * { box-sizing: border-box; }
-  body { margin:0; background:#0a0a1e; font-family:'Courier New',monospace; overflow:hidden; color:#fff; }
-  #gameWrap { position:relative; width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; }
-  canvas { image-rendering:pixelated; border:4px solid #2a2a3e; box-shadow:0 0 40px rgba(0,255,0,0.2); background:#000; cursor:crosshair; }
-  
-  #hud { position:absolute; top:12px; left:12px; display:flex; flex-direction:column; gap:6px; pointer-events:none; font-size:13px; }
-  .bar { width:180px; height:22px; background:rgba(0,0,0,0.7); border:2px solid #222; border-radius:3px; position:relative; overflow:hidden; }
-  .bar .fill { height:100%; transition:width 0.3s; }
-  .bar .label { position:absolute; top:0; left:8px; line-height:18px; font-size:12px; font-weight:bold; text-shadow:1px 1px 0 #000; }
-  #hpFill { background:linear-gradient(180deg, #ff4444, #aa0000); }
-  #hungerFill { background:linear-gradient(180deg, #ffaa00, #cc6600); }
-  
-  #topRight { position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.75); border:2px solid #222; border-radius:4px; padding:8px 14px; font-size:13px; text-align:right; pointer-events:none; line-height:1.6; }
-  #timeOfDay { color:#ffed4a; font-weight:bold; font-size:14px; text-shadow:0 0 8px currentColor; }
-  #gold { color:#ffd700; font-weight:bold; text-shadow:0 0 8px #ffd700; }
-  
-  #stats { position:absolute; top:12px; left:210px; font-size:11px; color:#888; background:rgba(0,0,0,0.6); padding:6px 10px; border-radius:4px; border:1px solid #222; pointer-events:none; line-height:1.5; }
-  
-  #topToolbar {
-    position:absolute; top:80px; left:50%; transform:translateX(-50%);
-    display:flex; gap:4px; background:rgba(0,0,0,0.85);
-    padding:6px; border:2px solid #2a2a3e; border-radius:8px; z-index:20;
-  }
-  .menuBtn {
-    display:flex; align-items:center; gap:6px;
-    padding:7px 14px; background:rgba(30,30,50,0.9);
-    border:2px solid #333; color:#888;
-    font-family:inherit; font-size:12px; font-weight:bold;
-    cursor:pointer; border-radius:5px;
-    transition:all 0.15s; user-select:none; white-space:nowrap;
-  }
-  .menuBtn:hover { background:rgba(50,50,80,0.9); border-color:#666; color:#fff; transform:translateY(-2px); }
-  #saveBtn { color:#5aff5a; }
-  #saveBtn:hover { border-color:#5aff5a; box-shadow:0 0 12px rgba(90,255,90,0.5); }
-  #achBtn { color:#ffed4a; }
-  #achBtn:hover { border-color:#ffed4a; box-shadow:0 0 12px rgba(255,237,74,0.5); }
-  #shopBtn { color:#ffd700; }
-  #shopBtn:hover { border-color:#ffd700; box-shadow:0 0 12px rgba(255,215,0,0.5); }
-  #hireBtn { color:#ffaa55; }
-  #hireBtn:hover { border-color:#ffaa55; box-shadow:0 0 12px rgba(255,170,85,0.5); }
-  #armyBtn { color:#ff5555; }
-  #armyBtn:hover { border-color:#ff5555; box-shadow:0 0 12px rgba(255,85,85,0.5); }
-  
-  #toolbar { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:5px; background:rgba(0,0,0,0.85); padding:8px; border:2px solid #2a2a3e; border-radius:8px; flex-wrap:wrap; justify-content:center; max-width:95%; }
-  .tool { padding:7px 10px; background:rgba(30,30,50,0.9); border:2px solid #333; color:#888; font-family:inherit; font-size:11px; cursor:pointer; border-radius:5px; user-select:none; transition:all 0.15s; min-width:54px; text-align:center; position:relative; }
-  .tool:hover { background:rgba(50,50,80,0.9); border-color:#666; color:#ccc; transform:translateY(-2px); }
-  .tool.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; box-shadow:0 0 15px rgba(255,237,74,0.6); font-weight:bold; }
-  .tool .num { position:absolute; top:1px; left:4px; font-size:9px; color:#666; }
-  .tool.active .num { color:#ffed4a; }
-  
-  #inv, #shop, #achPanel, #hirePanel, #armyPanel {
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    background:rgba(15,15,25,0.97); border:3px solid #2a2a3e; border-radius:10px;
-    padding:20px; display:none; box-shadow:0 0 40px rgba(0,0,0,0.9); z-index:100;
-    min-width:440px; max-width:600px; max-height:80vh; overflow-y:auto;
-  }
-  #inv h2, #shop h2, #achPanel h2, #hirePanel h2, #armyPanel h2 { color:#ffed4a; margin:0 0 16px 0; font-size:18px; border-bottom:2px solid #2a2a3e; padding-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
-  .closeBtn { background:none; border:1px solid #666; color:#ff6666; width:26px; height:26px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:14px; }
-  .closeBtn:hover { border-color:#ff6666; background:rgba(255,50,50,0.2); }
-  #invGrid { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; }
-  .invSlot { aspect-ratio:1; background:rgba(30,30,50,0.7); border:2px solid #333; border-radius:6px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; position:relative; min-height:60px; }
-  .invSlot:hover { border-color:#ffed4a; background:rgba(50,50,80,0.9); transform:scale(1.05); }
-  .invSlot .emoji { font-size:24px; line-height:1; }
-  .invSlot .name { font-size:9px; color:#aaa; margin-top:2px; }
-  .invSlot .count { position:absolute; bottom:2px; right:4px; font-size:11px; font-weight:bold; color:#ffed4a; text-shadow:1px 1px 0 #000; }
-  #invHint { margin-top:12px; font-size:11px; color:#666; text-align:center; }
-  .shopItem { display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(30,30,50,0.7); border:2px solid #333; border-radius:6px; margin-bottom:8px; }
-  .shopItem .info { display:flex; align-items:center; gap:10px; }
-  .shopItem .emoji { font-size:24px; }
-  .shopItem .name { color:#fff; font-size:14px; }
-  .shopItem .price { color:#ffd700; font-size:13px; }
-  .shopItem .desc { color:#888; font-size:11px; margin-top:2px; }
-  .shopItem button { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border:2px solid #5aff5a; color:#5aff5a; padding:6px 14px; font-family:inherit; font-size:12px; border-radius:4px; cursor:pointer; font-weight:bold; }
-  .shopItem button:hover { background:linear-gradient(180deg, #3a7d3a, #2a5d2a); }
-  .shopItem button:disabled { opacity:0.3; cursor:not-allowed; }
-  .shopItem .hireBtn { background:linear-gradient(180deg, #4a3d2a, #2a1d1a); border-color:#ffaa55; color:#ffaa55; }
-  .shopItem .hireBtn:hover { background:linear-gradient(180deg, #6a5d4a, #3a2d2a); }
-  .shopItem .armyBtn { background:linear-gradient(180deg, #5d2a2a, #3d1a1a); border-color:#ff5555; color:#ff5555; }
-  .shopItem .armyBtn:hover { background:linear-gradient(180deg, #7d3a3a, #5d2a2a); }
-  .shopTabs { display:flex; gap:6px; margin-bottom:12px; }
-  .shopTab { flex:1; padding:8px; text-align:center; background:rgba(30,30,50,0.7); border:2px solid #333; color:#888; font-family:inherit; font-size:13px; border-radius:4px; cursor:pointer; user-select:none; }
-  .shopTab.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; }
-  .achGrid { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }
-  .achItem { display:flex; gap:10px; align-items:center; padding:10px; background:rgba(30,30,50,0.5); border:2px solid #333; border-radius:6px; opacity:0.4; }
-  .achItem.unlocked { opacity:1; border-color:#ffed4a; background:linear-gradient(180deg, rgba(50,50,20,0.7), rgba(30,30,50,0.7)); box-shadow:0 0 10px rgba(255,237,74,0.3); }
-  .achItem .emoji { font-size:28px; }
-  .achItem .achName { color:#ffed4a; font-size:13px; font-weight:bold; }
-  .achItem .achDesc { color:#aaa; font-size:10px; margin-top:2px; }
-  #dialog { position:absolute; bottom:90px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; font-size:15px; display:none; min-width:400px; text-align:center; box-shadow:0 0 30px rgba(255,237,74,0.4); border-radius:6px; max-width:600px; z-index:80; }
-  #toast { position:absolute; top:140px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.9); border:2px solid #ffed4a; color:#ffed4a; padding:10px 20px; font-size:15px; display:none; box-shadow:0 0 20px rgba(255,237,74,0.5); border-radius:4px; pointer-events:none; font-weight:bold; z-index:200; }
-  #achPop { position:absolute; top:200px; left:50%; transform:translateX(-50%); background:linear-gradient(180deg, rgba(80,60,0,0.98), rgba(40,30,0,0.98)); border:3px solid #ffed4a; color:#ffed4a; padding:14px 24px; display:none; box-shadow:0 0 40px rgba(255,237,74,0.8); border-radius:8px; pointer-events:none; z-index:300; min-width:300px; text-align:center; }
-  #achPop .title { font-size:12px; color:#ffaa00; letter-spacing:3px; }
-  #achPop .name { font-size:18px; font-weight:bold; margin:4px 0; }
-  #achPop .desc { font-size:11px; color:#aaa; }
-  #damageFlash { position:absolute; inset:0; background:radial-gradient(circle, transparent 30%, rgba(255,0,0,0.6) 100%); opacity:0; pointer-events:none; transition:opacity 0.2s; z-index:50; }
-  #hint { position:absolute; bottom:12px; right:12px; font-size:10px; color:#555; text-align:right; line-height:1.6; }
-  #muteIcon { position:absolute; bottom:12px; left:12px; font-size:20px; cursor:pointer; padding:6px; user-select:none; transition:transform 0.2s; z-index:20; }
-  #muteIcon:hover { transform:scale(1.2); }
-  #saveIndicator { position:absolute; top:60px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#5aff5a; padding:6px 14px; border-radius:4px; font-size:12px; border:2px solid #5aff5a; display:none; z-index:150; box-shadow:0 0 15px rgba(90,255,90,0.4); }
-  #bedPrompt { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:3px solid #5aff5a; color:#5aff5a; padding:20px 36px; font-size:18px; display:none; text-align:center; border-radius:10px; box-shadow:0 0 40px rgba(90,255,90,0.7); z-index:150; pointer-events:none; animation: bedPulse 1.2s infinite; }
-  @keyframes bedPulse {
-    0%, 100% { transform: translate(-50%,-50%) scale(1); }
-    50% { transform: translate(-50%,-50%) scale(1.05); }
-  }
-  #fishIndicator { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.9); border:3px solid #4a90e2; color:#4a90e2; padding:14px 24px; font-size:15px; display:none; text-align:center; border-radius:8px; box-shadow:0 0 30px rgba(74,144,226,0.5); z-index:150; pointer-events:none; min-width:280px; }
-  #fishBar { width:220px; height:20px; background:rgba(0,0,0,0.7); border:2px solid #4a90e2; border-radius:3px; margin:10px auto 0; position:relative; overflow:hidden; }
-  #fishBar .fill { height:100%; background:linear-gradient(90deg, #4a90e2, #5aff5a); width:0%; }
-  .seedPicker { display:flex; gap:6px; margin-top:10px; padding:8px; background:rgba(0,0,0,0.5); border-radius:6px; }
-  .seedOpt { flex:1; padding:8px; text-align:center; background:rgba(30,30,50,0.7); border:2px solid #333; color:#aaa; font-family:inherit; font-size:11px; border-radius:4px; cursor:pointer; user-select:none; }
-  .seedOpt.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; }
-  #seedPickerWrap { position:absolute; bottom:110px; left:50%; transform:translateX(-50%); background:rgba(15,15,25,0.95); border:2px solid #ffed4a; border-radius:8px; padding:10px; display:none; z-index:80; }
-  .unitRow { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(30,30,50,0.6); border:2px solid #333; border-radius:6px; margin-bottom:6px; }
-  .unitRow.guard { border-color:#ffd700; box-shadow:0 0 8px rgba(255,215,0,0.4); }
-  .unitRow .info { display:flex; align-items:center; gap:10px; flex:1; }
-  .unitRow .emoji { font-size:22px; }
-  .unitRow .name { color:#fff; font-size:13px; }
-  .unitRow .status { color:#888; font-size:11px; }
-  .unitRow .status.working { color:#5aff5a; }
-  .unitRow .status.idle { color:#ffaa00; }
-  .unitRow .status.fighting { color:#ff5555; }
-  .unitRow .status.guard { color:#ffd700; }
-  .unitRow .slotInfo { color:#ffaa55; font-size:10px; }
-  .unitRow button { background:linear-gradient(180deg, #5d2a2a, #3d1a1a); border:2px solid #ff5555; color:#ff5555; padding:4px 10px; font-family:inherit; font-size:11px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:4px; }
-  .unitRow button:hover { background:linear-gradient(180deg, #7d3a3a, #5d2a2a); }
-  .unitRow button.guardBtn { background:linear-gradient(180deg, #5d5a2a, #3d3a1a); border-color:#ffd700; color:#ffd700; }
-  .unitRow button.guardBtn:hover { background:linear-gradient(180deg, #7d7a3a, #5d5a2a); }
-  .unitRow button.guardBtn.active { background:linear-gradient(180deg, #ffd700, #aa8800); color:#000; }
-  
-  .cropSelectRow {
-    display:flex; gap:8px; margin-top:12px; padding:12px;
-    background:rgba(0,0,0,0.4); border:2px dashed #444; border-radius:8px;
-  }
-  .cropSelectRow .cropOpt {
-    flex:1; padding:10px 8px; text-align:center;
-    background:rgba(30,30,50,0.7);
-    border:2px solid #333; color:#aaa;
-    font-family:inherit; font-size:12px;
-    border-radius:6px; cursor:pointer;
-    user-select:none; transition:all 0.15s;
-  }
-  .cropSelectRow .cropOpt:hover {
-    background:rgba(50,50,80,0.9);
-    border-color:#888;
-    color:#fff;
-  }
-  .cropSelectRow .cropOpt.active {
-    background:linear-gradient(180deg, #2a5d2a, #1a3d1a);
-    border-color:#ffed4a; color:#ffed4a;
-    box-shadow:0 0 10px rgba(255,237,74,0.4);
-    font-weight:bold;
-  }
-  .cropSelectRow .cropOpt .cropEmoji { font-size:24px; display:block; }
-  .cropSelectRow .cropOpt .cropName { font-size:11px; margin-top:4px; }
-  .cropSelectRow .cropOpt .cropStock { font-size:9px; color:#666; margin-top:2px; }
-  .cropSelectRow .cropOpt.active .cropStock { color:#ffed4a; }
-</style>
-</head>
-<body>
-<div id="gameWrap">
-  <canvas id="game" width="820" height="560"></canvas>
-  <div id="damageFlash"></div>
-  <div id="hud">
-    <div class="bar"><div class="fill" id="hpFill" style="width:100%"></div><div class="label">❤️ <span id="hpText">100/100</span></div></div>
-    <div class="bar"><div class="fill" id="hungerFill" style="width:100%"></div><div class="label">🍗 <span id="hungerText">100/100</span></div></div>
-  </div>
-  <div id="topRight">
-    <div id="timeOfDay">🌅 Pagi</div>
-    <div>Day <span id="dayNum">1</span> — <span id="clock">06:00</span></div>
-    <div>🪙 <span id="gold">0</span></div>
-    <div style="font-size:11px;color:#ffaa55">👨‍🌾 <span id="workerCount">0</span> · ⚔️ <span id="armyCount">0</span> · 🛡️ <span id="guardCount">0</span>/2</div>
-  </div>
-  <div id="stats">🪵 <span id="wood">0</span> · 🍗 <span id="food">0</span> · 🌾 <span id="wheat">0</span> · 🏹 <span id="arrows">10</span></div>
-  
-  <div id="topToolbar">
-    <button id="saveBtn" class="menuBtn">💾 Save</button>
-    <button id="achBtn" class="menuBtn">🏆 Trophy</button>
-    <button id="shopBtn" class="menuBtn">🏪 Shop</button>
-    <button id="hireBtn" class="menuBtn">👨‍🌾 Hire</button>
-    <button id="armyBtn" class="menuBtn">⚔️ Army</button>
-  </div>
-  
-  <div id="toolbar">
-    <div class="tool" data-tool="hoe"><span class="num">1</span>🪓<br>Hoe</div>
-    <div class="tool" data-tool="seed"><span class="num">2</span>🌱<br>Seed</div>
-    <div class="tool" data-tool="water"><span class="num">3</span>💧<br>Water</div>
-    <div class="tool" data-tool="harvest"><span class="num">4</span>🌾<br>Harvest</div>
-    <div class="tool" data-tool="axe"><span class="num">5</span>🪓<br>Axe</div>
-    <div class="tool" data-tool="sword"><span class="num">6</span>⚔️<br>Sword</div>
-    <div class="tool" data-tool="bow"><span class="num">7</span>🏹<br>Bow</div>
-    <div class="tool" data-tool="rod"><span class="num">8</span>🎣<br>Fishing</div>
-    <div class="tool" data-tool="shovel"><span class="num">9</span>🪏<br>Shovel</div>
-  </div>
-  <div id="seedPickerWrap">
-    <div style="color:#ffed4a;font-size:12px;margin-bottom:6px;text-align:center">🌱 Pilih Benih:</div>
-    <div class="seedPicker">
-      <div class="seedOpt active" data-seed="wheat">🌾 Gandum<br><small>10g</small></div>
-      <div class="seedOpt" data-seed="corn">🌽 Jagung<br><small>25g</small></div>
-      <div class="seedOpt" data-seed="tomato">🍅 Tomat<br><small>40g</small></div>
-    </div>
-  </div>
-  <div id="inv"><h2>🎒 Inventory <button class="closeBtn" id="closeInvBtn">✕</button></h2><div id="invGrid"></div><div id="invHint">Klik food buat makan · Klik item buat jual</div></div>
-  <div id="shop"><h2>🏪 Toko <button class="closeBtn" id="closeShopBtn">✕</button></h2><div class="shopTabs"><div class="shopTab active" data-tab="buy">🛒 Beli</div><div class="shopTab" data-tab="sell">💰 Jual</div></div><div id="shopContent"></div></div>
-  <div id="hirePanel"><h2>👨‍🌾 Hire Worker <button class="closeBtn" id="closeHireBtn">✕</button></h2><div id="hireContent"></div></div>
-  <div id="armyPanel"><h2>⚔️ Barak Prajurit <button class="closeBtn" id="closeArmyBtn">✕</button></h2><div id="armyContent"></div></div>
-  <div id="achPanel"><h2>🏆 Achievement <button class="closeBtn" id="closeAchBtn">✕</button></h2><div class="achGrid" id="achGrid"></div></div>
-  <div id="dialog"></div>
-  <div id="toast"></div>
-  <div id="achPop"><div class="title">🏆 ACHIEVEMENT UNLOCKED</div><div class="name" id="achPopName"></div><div class="desc" id="achPopDesc"></div></div>
-  <div id="muteIcon">🔊</div>
-  <div id="saveIndicator">💾 Tersimpan!</div>
-  <div id="bedPrompt">🛏️ <b>Tidur?</b><br>Tekan <b style="color:#ffed4a;font-size:22px">E</b> untuk tidur</div>
-  <div id="fishIndicator">🎣 <span id="fishStatus">Menunggu...</span><div id="fishBar"><div class="fill" id="fishBarFill"></div></div><div style="font-size:11px;color:#888;margin-top:6px" id="fishHint"></div></div>
-  <div id="hint">WASD = jalan • Klik = action • 1-9 = tool<br>B = shop • H = hire • R = army • G = guard</div>
-</div>
-
-<script>
-'use strict';
-// ============================================
-// ==== AUDIO ====
-// ============================================
-let audioCtx = null, masterGain = null, musicGain = null, sfxGain = null;
-let musicPlaying = false, musicTimer = null, muted = false, masterVolume = 0.7;
-let currentMusicPhase = 'dawn';
-
-function initAudio() {
-  if (audioCtx) return;
-  try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = audioCtx.createGain(); masterGain.gain.value = masterVolume;
-    masterGain.connect(audioCtx.destination);
-    musicGain = audioCtx.createGain(); musicGain.gain.value = 0.20; musicGain.connect(masterGain);
-    sfxGain = audioCtx.createGain(); sfxGain.gain.value = 0.4; sfxGain.connect(masterGain);
-    startMusic('dawn');
-  } catch(e) { console.warn('Audio error:', e); }
-}
-function playTone(f, d, t='square', v=1, w=0) {
-  if (!audioCtx || muted) return;
-  try {
-    const tt = audioCtx.currentTime + w;
-    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-    o.type = t; o.frequency.value = f;
-    g.gain.setValueAtTime(0.001, tt);
-    g.gain.exponentialRampToValueAtTime(0.25*v, tt+0.01);
-    g.gain.exponentialRampToValueAtTime(0.001, tt+d);
-    o.connect(g); g.connect(sfxGain);
-    o.start(tt); o.stop(tt+d+0.05);
-  } catch(e) {}
-}
-function playNoise(d, v=1, f=800) {
-  if (!audioCtx || muted) return;
-  try {
-    const bs = audioCtx.sampleRate * d;
-    const buf = audioCtx.createBuffer(1, bs, audioCtx.sampleRate);
-    const dd = buf.getChannelData(0);
-    for (let i=0; i<bs; i++) dd[i] = (Math.random()*2-1)*(1-i/bs);
-    const s = audioCtx.createBufferSource(); s.buffer = buf;
-    const g = audioCtx.createGain(); g.gain.value = 0.3*v;
-    const fl = audioCtx.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value = f;
-    s.connect(fl); fl.connect(g); g.connect(sfxGain); s.start();
-  } catch(e) {}
-}
-function sfxHoe() { playNoise(0.14,1,900); playTone(110,0.18,'sawtooth',1); playTone(75,0.15,'sawtooth',0.8,0.04); }
-function sfxSeed() { playTone(700,0.08,'sine',1); playTone(950,0.1,'sine',0.9,0.05); }
-function sfxWater() { playTone(1100,0.15,'sine',1); playTone(800,0.12,'sine',0.9,0.06); playTone(550,0.12,'sine',0.8,0.12); }
-function sfxHarvest() { playTone(523,0.1,'square',1); playTone(659,0.1,'square',1,0.07); playTone(784,0.13,'square',1,0.14); playTone(1047,0.18,'square',1,0.21); }
-function sfxSell() { playTone(988,0.07,'square',1); playTone(1319,0.15,'square',1,0.06); playTone(1568,0.12,'square',0.9,0.14); }
-function sfxBuy() { playTone(400,0.08,'square',1); playTone(600,0.1,'square',0.9,0.06); playTone(800,0.12,'square',0.8,0.14); }
-function sfxError() { playTone(180,0.15,'sawtooth',0.8); }
-function sfxClick() { playTone(1400,0.03,'square',0.6); }
-function sfxAxe() { playNoise(0.2,1.2,1200); playTone(160,0.15,'square',1); playTone(90,0.2,'square',0.8,0.05); }
-function sfxShovel() { playNoise(0.18,1,700); playTone(100,0.2,'sawtooth',0.9); }
-function sfxHit() { playNoise(0.12,0.8,2000); playTone(400,0.08,'square',0.8); }
-function sfxAnimalHurt() { playTone(600,0.1,'sawtooth',0.9); playTone(400,0.15,'sawtooth',0.8,0.08); }
-function sfxEat() { playTone(300,0.06,'square',0.9); playTone(400,0.06,'square',0.9,0.08); playTone(500,0.08,'square',0.8,0.16); }
-function sfxHurt() { playTone(200,0.2,'sawtooth',1); playTone(150,0.2,'sawtooth',0.9,0.1); }
-function sfxBowShoot() { playTone(880,0.08,'triangle',1); playTone(660,0.1,'triangle',0.9,0.05); playNoise(0.06,0.5,3000); }
-function sfxArrowHit() { playNoise(0.1,1,1500); playTone(300,0.08,'square',0.9); }
-function sfxWolfHowl() { playTone(300,0.5,'sawtooth',1); playTone(400,0.4,'sawtooth',1,0.15); playTone(350,0.5,'sawtooth',0.9,0.4); }
-function sfxWolfBite() { playNoise(0.15,1.2,500); playTone(150,0.2,'sawtooth',1); }
-function sfxDoor() { playTone(350,0.1,'triangle',0.9); playTone(250,0.15,'triangle',0.8,0.08); playNoise(0.08,0.4,400); }
-function sfxSleep() { playTone(523,0.15,'sine',0.8); playTone(659,0.15,'sine',0.7,0.2); playTone(784,0.15,'sine',0.7,0.4); playTone(1047,0.3,'sine',0.6,0.6); }
-function sfxSave() { playTone(880,0.08,'sine',1); playTone(1175,0.12,'sine',0.9,0.06); }
-function sfxFishCast() { playNoise(0.15,0.8,3000); playTone(500,0.1,'sine',0.8,0.05); }
-function sfxFishBite() { playTone(700,0.08,'square',1); playTone(900,0.08,'square',1,0.06); playTone(1100,0.12,'square',1,0.12); }
-function sfxFishCatch() { playTone(660,0.1,'triangle',1); playTone(880,0.12,'triangle',1,0.08); playTone(1320,0.2,'triangle',0.9,0.18); }
-function sfxFishMiss() { playTone(200,0.2,'sawtooth',0.8); playTone(150,0.15,'sawtooth',0.7,0.1); }
-function sfxAchievement() { playTone(523,0.12,'square',1); playTone(659,0.12,'square',1,0.1); playTone(784,0.12,'square',1,0.2); playTone(1047,0.25,'square',1,0.3); playTone(1319,0.3,'square',0.9,0.42); }
-function sfxHire() { playTone(440,0.1,'triangle',1); playTone(660,0.12,'triangle',1,0.1); playTone(880,0.15,'triangle',1,0.2); }
-function sfxRecruit() { playTone(300,0.12,'sawtooth',1); playTone(400,0.12,'sawtooth',1,0.1); playTone(600,0.2,'sawtooth',1,0.2); playNoise(0.15,0.5,1500); }
-function sfxCoin() { playTone(1319,0.05,'square',0.9); playTone(1760,0.08,'square',0.7,0.04); }
-function sfxSword() { playNoise(0.1,1.2,2500); playTone(500,0.08,'triangle',0.9); playTone(250,0.15,'triangle',0.8,0.05); }
-function sfxArmor() { playNoise(0.08,0.8,1800); playTone(300,0.1,'square',0.6); playTone(200,0.1,'square',0.5,0.05); }
-
-const scales = {
-  dawn: [261.63, 293.66, 329.63, 392, 440, 523.25],
-  day: [392, 440, 493.88, 587.33, 659.25, 783.99],
-  evening: [349.23, 392, 440, 523.25, 587.33, 698.46],
-  night: [220, 246.94, 261.63, 329.63, 349.23, 440],
-  interior: [329.63, 392, 440, 493.88, 587.33, 659.25],
-};
-function startMusic(phase) {
-  if (!audioCtx) return;
-  if (musicPlaying && currentMusicPhase === phase) return;
-  if (musicTimer) clearTimeout(musicTimer);
-  musicPlaying = true; currentMusicPhase = phase; playMusicLoop();
-}
-function playMusicLoop() {
-  if (!audioCtx || !musicPlaying) return;
-  try {
-    const scale = scales[currentMusicPhase] || scales.day;
-    const isNight = currentMusicPhase === 'night';
-    const isDawn = currentMusicPhase === 'dawn';
-    const isInt = currentMusicPhase === 'interior';
-    const bT = isNight ? 0.7 : isDawn ? 0.55 : isInt ? 0.6 : 0.45;
-    const start = audioCtx.currentTime + 0.05;
-    const TN = 16, notes = [];
-    for (let i=0; i<TN; i++) {
-      const r = Math.random() < (isNight ? 0.4 : isInt ? 0.5 : 0.3);
-      if (r) { notes.push(null); continue; }
-      const n = scale[Math.floor(Math.random()*scale.length)];
-      const up = Math.random() < 0.15 ? 2 : 1;
-      notes.push(n*up);
-    }
-    notes.forEach((n, i) => {
-      if (n === null) return;
-      const t = start + i*bT;
-      const vol = isNight ? 0.3 : 0.45;
-      const type = isNight ? 'triangle' : (isDawn || isInt ? 'sine' : 'square');
-      scheduleNote(n, t, bT*0.85, type, vol);
-    });
-    for (let i=0; i<TN; i+=4) scheduleNote(scale[0]/4, start + i*bT, bT*3.5, 'triangle', 0.5);
-    musicTimer = setTimeout(() => { if (musicPlaying) playMusicLoop(); }, TN*bT*1000);
-  } catch(e) {}
-}
-function scheduleNote(f, st, dur, type, vol) {
-  if (!audioCtx) return;
-  try {
-    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-    o.type = type; o.frequency.value = f;
-    g.gain.setValueAtTime(0.001, st);
-    g.gain.exponentialRampToValueAtTime(vol, st+0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, st+dur);
-    o.connect(g); g.connect(musicGain);
-    o.start(st); o.stop(st+dur+0.05);
-  } catch(e) {}
-}
-
-// ============================================
-// ==== CONSTANTS ====
-// ============================================
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
-const PX = 5, TILE = 16, WORLD_W = 40, WORLD_H = 30;
-
-const T_GRASS=0,T_PATH=1,T_WATER=2,T_TREE=3,T_FARMLAND=4,T_CROP=5,
-      T_HOUSE=6,T_STUMP=7,T_SAPLING=8,T_HOUSE_DOOR=9,T_FLOWER=10,T_LAMP=11,
-      T_BED=12,T_INTERIOR_FLOOR=13,T_WALL=14,T_TABLE=15,T_SHOP=16,T_CAMP=17;
-
-const CROP_TYPES = {
-  wheat:  { name:'Gandum', emoji:'🌾', price:10, seedPrice:5,  growTime:400, color:'#e8c850' },
-  corn:   { name:'Jagung', emoji:'🌽', price:25, seedPrice:15, growTime:600, color:'#ffcc33' },
-  tomato: { name:'Tomat',  emoji:'🍅', price:40, seedPrice:25, growTime:800, color:'#ff4444' },
-};
-
-const WORKER_MAX_FARMLAND = 6;
-const MAX_GUARDS = 2;
-
-const ARMY_TYPES = {
-  swordsman: {
-    name: 'Swordsman', emoji: '⚔️', cost: 150,
-    desc: 'Melee HP 60, DMG 15, Armor 2',
-    color: '#8b3a3a', shirt: '#c0392b',
-    hp: 60, hpMax: 60, dmg: 15, range: 22, speed: 1.2, attackDelay: 0.8,
-    armor: 2, armorColor: '#b0b0b0', armorStyle: 'chain',
-  },
-  archer: {
-    name: 'Archer', emoji: '🏹', cost: 180,
-    desc: 'Ranged HP 45, DMG 12, Armor 1',
-    color: '#3a5a8b', shirt: '#2980b9',
-    hp: 45, hpMax: 45, dmg: 12, range: 130, speed: 1.0, attackDelay: 1.0,
-    armor: 1, armorColor: '#5a3a1a', armorStyle: 'leather',
-  },
-  knight: {
-    name: 'Knight', emoji: '🛡️', cost: 400,
-    desc: 'Tank HP 140, DMG 25, Armor 4',
-    color: '#5a5a5a', shirt: '#7f8c8d',
-    hp: 140, hpMax: 140, dmg: 25, range: 24, speed: 0.8, attackDelay: 0.6,
-    armor: 4, armorColor: '#c0c0c0', armorStyle: 'plate',
-  },
-};
-
-// ============================================
-// ==== STATE ====
-// ============================================
-const camera = { x:0, y:0 };
-const player = {
-  x: 20*TILE, y: 20*TILE, w: 10, h: 14, speed: 1.0,
-  dir: 'down', animTimer: 0, walkFrame: 0,
-  hp: 100, hpMax: 100, hunger: 100, hungerMax: 100,
-  attackCooldown: 0,
-};
-const time = { totalMinutes: 6*60, day: 1, minutesPerSecond: 3 };
-const inventory = { wheat:0, corn:0, tomato:0, wood:0, food:0, seeds:5, seeds_corn:0, seeds_tomato:0, arrows:10, pelt:0, fish:0 };
-let gameGold = 500;
-let currentSeed = 'wheat';
-let workerSeed = 'wheat';
-let currentTool = null;
-let showInventory = false;
-
-let world = [];
-const crops = {};
-const trees = {};
-let animals = [];
-let wolves = [];
-let arrows = [];
-let npcs = [];
-let workers = [];
-let army = [];
-let projectiles = [];
-let currentInterior = null;
-let doorCooldown = 0;
-let nearDoor = false;
-let nearBed = false;
-let nearShop = false;
-let nearWater = false;
-let nearShopTile = null;
-
-// ============================================
-// ==== UTILS ====
-// ============================================
-function isSolid(tx, ty, w) {
-  const ww = w || world;
-  if (!ww || !ww[ty]) return true;
-  if (tx < 0 || ty < 0 || tx >= ww[0].length || ty >= ww.length) return true;
-  const t = ww[ty][tx];
-  return [T_WATER,T_TREE,T_HOUSE,T_LAMP,T_SAPLING,T_WALL,T_TABLE,T_BED].includes(t);
-}
-function canMoveTo(nx, ny, w, h, ww) {
-  const wref = ww || world;
-  if (!wref || !wref.length) return false;
-  const corners = [
-    {x: nx, y: ny}, {x: nx+w-1, y: ny},
-    {x: nx, y: ny+h-1}, {x: nx+w-1, y: ny+h-1}
-  ];
-  return corners.every(c => !isSolid(Math.floor(c.x/TILE), Math.floor(c.y/TILE), wref));
-}
-function getTimeOfDay() {
-  const h = Math.floor(time.totalMinutes/60) % 24;
-  if (h >= 5 && h < 9) return 'dawn';
-  if (h >= 9 && h < 17) return 'day';
-  if (h >= 17 && h < 20) return 'evening';
-  return 'night';
-}
-function getClockString() {
-  const h = Math.floor(time.totalMinutes/60)%24, m = Math.floor(time.totalMinutes%60);
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-}
-function getDarkness() {
-  const h = (time.totalMinutes/60)%24;
-  if (h >= 9 && h < 17) return 0;
-  if (h >= 5 && h < 9) return 0.35*(1-(h-5)/4);
-  if (h >= 17 && h < 20) return 0.35*((h-17)/3)+0.15;
-  return 0.6;
-}
-const skyColors = {
-  dawn:'rgba(255,180,100,0.15)', day:'rgba(255,255,255,0.0)',
-  evening:'rgba(255,120,80,0.2)', night:'rgba(20,20,60,0.55)',
-};
-function getActiveWorld() { return currentInterior ? currentInterior.world : world; }
-
-function countFarmlandTiles() {
-  let count = 0;
-  for (const key in crops) {
-    const [tx, ty] = key.split(',').map(Number);
-    if (!world[ty]) continue;
-    const t = world[ty][tx];
-    if (t === T_FARMLAND || t === T_CROP) count++;
-  }
-  return count;
-}
-function getWorkerFarmlandLimit() {
-  return workers.length * WORKER_MAX_FARMLAND;
-}
-function getSeedKey(cropType) {
-  return 'seeds' + (cropType === 'wheat' ? '' : '_' + cropType);
-}
-
-// ============================================
-// ==== UI ====
-// ============================================
-let dialogTimer = 0;
-function showToast(msg, color='#ffed4a') {
-  const t = document.getElementById('toast');
-  if (!t) return;
-  t.textContent = msg;
-  t.style.color = color; t.style.borderColor = color;
-  t.style.boxShadow = `0 0 20px ${color}`;
-  t.style.display = 'block';
-  clearTimeout(t._timeout);
-  t._timeout = setTimeout(() => t.style.display = 'none', 1400);
-}
-function showDialog(text) {
-  const d = document.getElementById('dialog');
-  if (!d) return;
-  d.textContent = text; d.style.display = 'block'; dialogTimer = 220;
-}
-function flashDamage() {
-  const f = document.getElementById('damageFlash');
-  if (!f) return;
-  f.style.opacity = '1';
-  setTimeout(() => f.style.opacity = '0', 150);
-}
-function ensureAudio() {
-  if (!audioCtx) initAudio();
-  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-}
-
-// ============================================
-// ==== WORLD GEN ====
-// ============================================
-function generateWorld() {
-  world = [];
-  for (let y=0; y<WORLD_H; y++) {
-    let row = [];
-    for (let x=0; x<WORLD_W; x++) {
-      let t = T_GRASS;
-      if (x >= WORLD_W-3) t = T_WATER;
-      else if (Math.random() < 0.05) t = T_TREE;
-      else if (Math.random() < 0.04) t = T_FLOWER;
-      row.push(t);
-    }
-    world.push(row);
-  }
-  for (let y=8; y<18; y++)
-    for (let x=4; x<WORLD_W-4; x++) world[y][x] = T_GRASS;
-  for (let x=0; x<WORLD_W; x++) { world[13][x] = T_PATH; world[14][x] = T_PATH; }
-  function drawHouse(x0, y0) {
-    for (let y=y0; y<y0+4; y++)
-      for (let x=x0; x<x0+5; x++)
-        world[y][x] = T_HOUSE;
-    world[y0+3][x0+2] = T_HOUSE_DOOR;
-  }
-  drawHouse(4, 9);
-  drawHouse(17, 9);
-  drawHouse(30, 9);
-
-  world[15][25] = T_SHOP;
-  world[15][24] = T_PATH;
-  world[15][26] = T_PATH;
-  world[16][25] = T_PATH;
-
-  world[22][8] = T_CAMP;
-  world[22][9] = T_CAMP;
-  world[23][8] = T_CAMP;
-  world[23][9] = T_CAMP;
-  for (let y=21; y<25; y++)
-    for (let x=7; x<12; x++)
-      if (world[y] && [T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
-
-  for (let x=6; x<WORLD_W-6; x+=8)
-    if (world[12] && world[12][x] === T_GRASS) world[12][x] = T_LAMP;
-
-  for (let y=18; y<WORLD_H-2; y++)
-    for (let x=15; x<25; x++)
-      if ([T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
-  for (let y=15; y<18; y++)
-    for (let x=24; x<28; x++)
-      if (world[y] && [T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
-
-  for (let y=0; y<WORLD_H; y++)
-    for (let x=0; x<WORLD_W; x++)
-      if (world[y][x] === T_TREE) trees[`${x},${y}`] = { stage: 3, timer: 0 };
-}
-generateWorld();
-
-function generateInterior() {
-  const W = 20, H = 14;
-  const w = [];
-  for (let y=0; y<H; y++) {
-    let row = [];
-    for (let x=0; x<W; x++) {
-      let t = T_INTERIOR_FLOOR;
-      if (y === 0 || y === H-1 || x === 0 || x === W-1) t = T_WALL;
-      row.push(t);
-    }
-    w.push(row);
-  }
-  w[0][10] = T_HOUSE_DOOR;
-  w[3][4] = T_BED; w[3][5] = T_BED; w[4][4] = T_BED; w[4][5] = T_BED;
-  w[5][14] = T_TABLE; w[5][15] = T_TABLE; w[6][14] = T_TABLE; w[6][15] = T_TABLE;
-  return w;
-}
-const interiors = {
-  0: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 9*TILE} },
-  1: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 9*TILE} },
-  2: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 9*TILE} },
-};
-
-// ============================================
-// ==== ACHIEVEMENTS ====
-// ============================================
-const achievements = {
-  first_harvest:  { emoji:'🌾', name:'Panen Pertama', desc:'Panen tanaman pertama', unlocked: false },
-  farmer:         { emoji:'👨‍🌾', name:'Petani Handal', desc:'Panen 10 kali', unlocked: false },
-  fisherman:      { emoji:'🎣', name:'Nelayan', desc:'Tangkap 5 ikan', unlocked: false },
-  hunter:         { emoji:'🏹', name:'Pemburu', desc:'Bunuh 5 hewan', unlocked: false },
-  wolf_slayer:    { emoji:'🐺', name:'Pembunuh Serigala', desc:'Bunuh 3 serigala', unlocked: false },
-  rich:           { emoji:'💰', name:'Kaya Raya', desc:'Kumpulkan 500 gold', unlocked: false },
-  woodcutter:     { emoji:'🪓', name:'Penebang', desc:'Tebang 10 pohon', unlocked: false },
-  multi_crop:     { emoji:'🌽', name:'Petani Modern', desc:'Tanam 3 jenis tanaman', unlocked: false },
-  survivor:       { emoji:'🔥', name:'Survivor', desc:'Bertahan 3 hari', unlocked: false },
-  trader:         { emoji:'🏪', name:'Pedagang', desc:'Beli 5 item dari toko', unlocked: false },
-  sleeper:        { emoji:'🛏️', name:'Tukang Tidur', desc:'Tidur 5 kali', unlocked: false },
-  fisher_master:  { emoji:'🐟', name:'Master Mancing', desc:'Tangkap 20 ikan', unlocked: false },
-  boss:           { emoji:'👨‍💼', name:'Bos Besar', desc:'Punya 5 petani', unlocked: false },
-  general:        { emoji:'⚔️', name:'Jenderal', desc:'Punya 5 prajurit', unlocked: false },
-  army_full:      { emoji:'🏰', name:'Benteng Berjalan', desc:'Punya 10 prajurit', unlocked: false },
-  guardian:       { emoji:'🛡️', name:'Pelindung', desc:'2 army mendampingi', unlocked: false },
-};
-const stats = {
-  harvestCount: 0, fishCaught: 0, animalsKilled: 0, wolvesKilled: 0,
-  treesChopped: 0, cropsPlanted: new Set(), shopPurchases: 0,
-  sleepCount: 0, maxGold: 0, workersHired: 0, soldiersRecruited: 0,
-};
-function unlockAchievement(key) {
-  if (!achievements[key] || achievements[key].unlocked) return;
-  achievements[key].unlocked = true;
-  const a = achievements[key];
-  const nameEl = document.getElementById('achPopName');
-  const descEl = document.getElementById('achPopDesc');
-  const pop = document.getElementById('achPop');
-  if (!nameEl || !pop) return;
-  nameEl.textContent = `${a.emoji} ${a.name}`;
-  descEl.textContent = a.desc;
-  pop.style.display = 'block';
-  sfxAchievement();
-  clearTimeout(pop._timeout);
-  pop._timeout = setTimeout(() => pop.style.display = 'none', 3500);
-}
-function checkAchievements() {
-  if (!achievements.first_harvest.unlocked && stats.harvestCount >= 1) unlockAchievement('first_harvest');
-  if (!achievements.farmer.unlocked && stats.harvestCount >= 10) unlockAchievement('farmer');
-  if (!achievements.fisherman.unlocked && stats.fishCaught >= 5) unlockAchievement('fisherman');
-  if (!achievements.fisher_master.unlocked && stats.fishCaught >= 20) unlockAchievement('fisher_master');
-  if (!achievements.hunter.unlocked && stats.animalsKilled >= 5) unlockAchievement('hunter');
-  if (!achievements.wolf_slayer.unlocked && stats.wolvesKilled >= 3) unlockAchievement('wolf_slayer');
-  if (!achievements.rich.unlocked && stats.maxGold >= 500) unlockAchievement('rich');
-  if (!achievements.woodcutter.unlocked && stats.treesChopped >= 10) unlockAchievement('woodcutter');
-  if (!achievements.multi_crop.unlocked && stats.cropsPlanted.size >= 3) unlockAchievement('multi_crop');
-  if (!achievements.survivor.unlocked && time.day >= 4) unlockAchievement('survivor');
-  if (!achievements.trader.unlocked && stats.shopPurchases >= 5) unlockAchievement('trader');
-  if (!achievements.sleeper.unlocked && stats.sleepCount >= 5) unlockAchievement('sleeper');
-  if (!achievements.boss.unlocked && workers.length >= 5) unlockAchievement('boss');
-  if (!achievements.general.unlocked && army.length >= 5) unlockAchievement('general');
-  if (!achievements.army_full.unlocked && army.length >= 10) unlockAchievement('army_full');
-  const guardCount = army.filter(s => s.guard).length;
-  if (!achievements.guardian.unlocked && guardCount >= 2) unlockAchievement('guardian');
-}
-
-// ============================================
-// ==== NPCs & ANIMALS ====
-// ============================================
-const ANIMAL_TYPES = {
-  rabbit: { color:'#f0e0d0', hp:20, speed:0.4, dropAmt:2 },
-  chicken: { color:'#f5d76e', hp:15, speed:0.5, dropAmt:1 },
-  cow: { color:'#e0d0b0', hp:40, speed:0.25, dropAmt:3 },
-};
-
-function initNPCs() {
-  npcs = [
-    { x: 8*TILE, y: 15*TILE, dir:'down', color:'#ff6b6b', name:'Budi',
-      dialog:'Hire petani (H) atau rekrut prajurit (R)!',
-      targetX: 8, targetY: 15, moveTimer: 3, speed: 0.3, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
-    { x: 19*TILE, y: 15*TILE, dir:'left', color:'#4ecdc4', name:'Sari',
-      dialog:'Prajurit bakal lindungin ladang dari serigala!',
-      targetX: 19, targetY: 15, moveTimer: 4, speed: 0.35, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
-    { x: 32*TILE, y: 15*TILE, dir:'right', color:'#ffe66d', name:'Pak Tani',
-      dialog:'Ada toko di timur! Tekan B buat buka.',
-      targetX: 32, targetY: 15, moveTimer: 5, speed: 0.25, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
-  ];
-}
-initNPCs();
-
-function spawnAnimals() {
-  animals = [];
-  const types = ['rabbit', 'chicken', 'cow'];
-  for (let i=0; i<8; i++) {
-    const type = types[Math.floor(Math.random()*types.length)];
-    let x, y, tries = 0;
-    do { x = Math.floor(Math.random()*WORLD_W); y = Math.floor(Math.random()*WORLD_H); tries++; }
-    while (tries < 50 && (world[y][x] !== T_GRASS || (Math.abs(x-20)<5 && Math.abs(y-20)<5)));
-    const t = ANIMAL_TYPES[type];
-    animals.push({
-      x: x*TILE+3, y: y*TILE+3, type, hp: t.hp, hpMax: t.hp,
-      vx:0, vy:0, speed: t.speed, dir:'down', wanderTimer:0, wanderAngle:0,
-      hurtFlash:0, dead:false, animTimer:0, walkFrame:0, pauseTimer:0,
-    });
-  }
-}
-spawnAnimals();
-
-function spawnSingleAnimal(type) {
-  const t = ANIMAL_TYPES[type];
-  let x, y, tries = 0;
-  do { x = Math.floor(Math.random()*WORLD_W); y = Math.floor(Math.random()*WORLD_H); tries++; }
-  while (tries < 50 && world[y][x] !== T_GRASS);
-  animals.push({
-    x: x*TILE+3, y: y*TILE+3, type, hp: t.hp, hpMax: t.hp,
-    vx:0, vy:0, speed: t.speed, dir:'down', wanderTimer:0, wanderAngle:0,
-    hurtFlash:0, dead:false, animTimer:0, walkFrame:0, pauseTimer:0,
-  });
-}
-
-function spawnWolf() {
-  let side = Math.floor(Math.random()*4), tx, ty;
-  if (side === 0) { tx = Math.floor(Math.random()*WORLD_W); ty = 1; }
-  else if (side === 1) { tx = WORLD_W-3; ty = Math.floor(Math.random()*WORLD_H); }
-  else if (side === 2) { tx = Math.floor(Math.random()*WORLD_W); ty = WORLD_H-3; }
-  else { tx = 1; ty = Math.floor(Math.random()*WORLD_H); }
-  wolves.push({
-    x: tx*TILE, y: ty*TILE, w:12, h:12, hp:30, hpMax:30, speed:0.9,
-    attackTimer:0, dir:'down', hurtFlash:0, animTimer:0, walkFrame:0, wanderTimer:0, wanderAngle:0,
-    target: null,
-  });
-  sfxWolfHowl();
-}
-
-function getAnimalAt(tx, ty) {
-  for (const a of animals) if (!a.dead && Math.floor(a.x/TILE) === tx && Math.floor(a.y/TILE) === ty) return a;
-  return null;
-}
-function getWolfAt(tx, ty) {
-  for (const w of wolves) if (Math.floor(w.x/TILE) === tx && Math.floor(w.y/TILE) === ty) return w;
-  return null;
-}
-
-// ============================================
-// ==== WORKER (PETANI) ====
-// ============================================
-function hireWorker() {
-  if (gameGold < 100) {
-    sfxError();
-    showToast(`❌ Butuh 100 gold!`, '#ff4444');
-    return false;
-  }
-  gameGold -= 100;
-  let wx = player.x + (Math.random()-0.5)*60;
-  let wy = player.y + (Math.random()-0.5)*60;
-  workers.push({
-    x: wx, y: wy,
-    w: 10, h: 14,
-    name: `Petani #${workers.length+1}`,
-    color: '#8b6f47', shirt: '#5a8a3a',
-    speed: 0.6,
-    actionDelay: 1.5,
-    actionTimer: 0,
-    dir: 'down',
-    animTimer: 0, walkFrame: 0,
-    state: 'idle',
-    targetTile: null,
-    salary: 5,
-    salaryTimer: 60,
-    currentCropType: workerSeed,
-  });
-  stats.workersHired++;
-  sfxHire();
-  const cropName = CROP_TYPES[workerSeed].name;
-  showToast(`👨‍🌾 Petani di-hire! Tanam: ${CROP_TYPES[workerSeed].emoji} ${cropName}`, '#5aff5a');
-  updateHUD();
-  checkAchievements();
-  return true;
-}
-function fireWorker(index) {
-  if (index < 0 || index >= workers.length) return;
-  const w = workers[index];
-  workers.splice(index, 1);
-  sfxClick();
-  showToast(`👋 ${w.name} dipecat`, '#ffaa55');
-  updateHUD();
-  renderHirePanel();
-}
-
-function updateWorkers(dt) {
-  workers.forEach(w => {
-    w.salaryTimer -= dt;
-    if (w.salaryTimer <= 0) {
-      w.salaryTimer = 60;
-      if (gameGold >= w.salary) {
-        gameGold -= w.salary;
-        showToast(`💰 Bayar upah ${w.name} -${w.salary}g`, '#ffd700');
-        sfxCoin();
-      } else {
-        showToast(`⚠️ Gold kurang! ${w.name} mogok kerja`, '#ff4444');
-        w.state = 'idle';
-      }
-    }
-
-    w.actionTimer -= dt;
-
-    if (w.state === 'idle' || !w.targetTile) {
-      const task = findFarmTask(w);
-      if (task) {
-        w.targetTile = task.tile;
-        w.state = task.type;
-      } else {
-        if (Math.random() < 0.005) {
-          w.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
-        }
-        return;
-      }
-    }
-
-    if (w.targetTile) {
-      const tx = w.targetTile.x * TILE + 3;
-      const ty = w.targetTile.y * TILE + 3;
-      const d = Math.hypot(tx - w.x, ty - w.y);
-
-      if (d < 6) {
-        if (w.actionTimer <= 0) {
-          doWorkerAction(w);
-          w.actionTimer = w.actionDelay;
-        }
-      } else {
-        const dx = (tx - w.x) / d * w.speed;
-        const dy = (ty - w.y) / d * w.speed;
-        if (canMoveTo(w.x + dx, w.y, 10, 14, world)) w.x += dx;
-        if (canMoveTo(w.x, w.y + dy, 10, 14, world)) w.y += dy;
-        if (Math.abs(dx) > Math.abs(dy)) w.dir = dx > 0 ? 'right' : 'left';
-        else w.dir = dy > 0 ? 'down' : 'up';
-        w.animTimer++;
-        if (w.animTimer > 10) { w.animTimer = 0; w.walkFrame = (w.walkFrame + 1) % 4; }
-      }
-    }
-  });
-}
-
-// ==== FIND TASK — PRIORITAS: TANEM DULU ====
-function findFarmTask(w) {
-  // PRIORITY:
-  // 1. HARVEST (yang udah matang)
-  // 2. PLANT (tanam di farmland kosong) — INI YANG DIPRIORITASKAN
-  // 3. HOE (cangkul lahan baru kalau masih ada slot)
-  // 4. WATER (baru siram kalau semua farmland udah ketanem)
-
-  // === 1. HARVEST ===
-  for (const key in crops) {
-    const [tx, ty] = key.split(',').map(Number);
-    const c = crops[key];
-    const t = world[ty] && world[ty][tx];
-    if (t === T_CROP && c.stage >= 3) {
-      return { type: 'harvest', tile: {x:tx, y:ty} };
-    }
-  }
-
-  // === 2. PLANT — kalau ada farmland kosong DAN ada benih ===
-  const seedKey = getSeedKey(w.currentCropType);
-  if (inventory[seedKey] > 0) {
-    for (const key in crops) {
-      const [tx, ty] = key.split(',').map(Number);
-      const c = crops[key];
-      const t = world[ty] && world[ty][tx];
-      if (t === T_FARMLAND && (!c || c.stage === -1)) {
-        return { type: 'plant', tile: {x:tx, y:ty} };
-      }
-    }
-  }
-
-  // === 3. HOE — cangkul lahan baru kalau masih ada slot ===
-  const farmlandCount = countFarmlandTiles();
-  const limit = getWorkerFarmlandLimit();
-  if (farmlandCount < limit) {
-    const wtx = Math.floor(w.x / TILE);
-    const wty = Math.floor(w.y / TILE);
-    for (let r = 1; r <= 6; r++) {
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-          const tx = wtx + dx, ty = wty + dy;
-          if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
-          if (world[ty][tx] === T_GRASS || world[ty][tx] === T_FLOWER) {
-            let nearFarmland = false;
-            for (let sy = -2; sy <= 2 && !nearFarmland; sy++) {
-              for (let sx = -2; sx <= 2; sx++) {
-                const nx = tx + sx, ny = ty + sy;
-                if (nx >= 0 && ny >= 0 && nx < WORLD_W && ny < WORLD_H) {
-                  if (world[ny][nx] === T_FARMLAND || world[ny][nx] === T_CROP) {
-                    nearFarmland = true; break;
-                  }
-                }
-              }
-            }
-            if (nearFarmland || farmlandCount === 0) {
-              return { type: 'hoe', tile: {x:tx, y:ty} };
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // === 4. WATER — BARU siram setelah tanem & cangkul selesai ===
-  // (Setelah semua farmland ketanem, cek yang perlu disiram)
-  for (const key in crops) {
-    const [tx, ty] = key.split(',').map(Number);
-    const c = crops[key];
-    const t = world[ty] && world[ty][tx];
-    if (t === T_CROP && c.stage < 3 && !c.watered) {
-      return { type: 'water', tile: {x:tx, y:ty} };
-    }
-  }
-
-  return null;
-}
-
-function doWorkerAction(w) {
-  if (!w.targetTile) return;
-  const tx = w.targetTile.x, ty = w.targetTile.y;
-  const key = `${tx},${ty}`;
-  const t = world[ty] && world[ty][tx];
-
-  if (w.state === 'hoe') {
-    if (t === T_GRASS || t === T_FLOWER) {
-      world[ty][tx] = T_FARMLAND;
-      crops[key] = { stage: -1 };
-      sfxHoe();
-    }
-    w.targetTile = null;
-    w.state = 'idle';
-  } 
-  else if (w.state === 'plant') {
-    const seedKey = getSeedKey(w.currentCropType);
-    if (t === T_FARMLAND && inventory[seedKey] > 0) {
-      inventory[seedKey]--;
-      world[ty][tx] = T_CROP;
-      const cropInfo = CROP_TYPES[w.currentCropType] || CROP_TYPES.wheat;
-      crops[key] = { 
-        stage: 0, 
-        watered: false, 
-        timer: 0, 
-        type: w.currentCropType,
-        growTime: cropInfo.growTime,
-      };
-      stats.cropsPlanted.add(w.currentCropType);
-      sfxSeed();
-    }
-    w.targetTile = null;
-    w.state = 'idle';
-  } 
-  else if (w.state === 'water') {
-    if (t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) {
-      crops[key].watered = true;
-      sfxWater();
-    }
-    w.targetTile = null;
-    w.state = 'idle';
-  } 
-  else if (w.state === 'harvest') {
-    if (t === T_CROP && crops[key] && crops[key].stage >= 3) {
-      const cropType = crops[key].type || 'wheat';
-      inventory[cropType] = (inventory[cropType] || 0) + 1;
-      stats.harvestCount++;
-      world[ty][tx] = T_FARMLAND;
-      crops[key] = { stage: -1 };
-      sfxHarvest();
-      showToast(`👨‍🌾 ${w.name} panen ${CROP_TYPES[cropType].emoji}!`, '#5aff5a');
-      updateHUD();
-    }
-    w.targetTile = null;
-    w.state = 'idle';
-  }
-}
-
-// ============================================
-// ==== ARMY ====
-// ============================================
-function recruitSoldier(type) {
-  const at = ARMY_TYPES[type];
-  if (!at) return false;
-  if (gameGold < at.cost) {
-    sfxError();
-    showToast(`❌ Butuh ${at.cost} gold!`, '#ff4444');
-    return false;
-  }
-  gameGold -= at.cost;
-  const campX = 8.5 * TILE, campY = 22.5 * TILE;
-  army.push({
-    x: campX + (Math.random()-0.5)*40,
-    y: campY + (Math.random()-0.5)*40,
-    w: 10, h: 14,
-    type: type,
-    name: `${at.name} #${army.length+1}`,
-    color: at.color, shirt: at.shirt,
-    hp: at.hp, hpMax: at.hpMax,
-    dmg: at.dmg, range: at.range, speed: at.speed,
-    attackDelay: at.attackDelay, attackTimer: 0,
-    armor: at.armor,
-    armorColor: at.armorColor,
-    armorStyle: at.armorStyle,
-    hurtFlash: 0,
-    dir: 'down',
-    animTimer: 0, walkFrame: 0,
-    state: 'patrol',
-    target: null,
-    patrolTarget: { x: campX, y: campY },
-    patrolTimer: Math.random() * 3,
-    guard: false,
-  });
-  stats.soldiersRecruited++;
-  sfxRecruit();
-  showToast(`${at.emoji} ${at.name} direkrut! (-${at.cost}g)`, '#ff5555');
-  updateHUD();
-  checkAchievements();
-  return true;
-}
-function dismissSoldier(index) {
-  if (index < 0 || index >= army.length) return;
-  const s = army[index];
-  army.splice(index, 1);
-  sfxClick();
-  showToast(`👋 ${s.name} dibubarkan`, '#ffaa55');
-  updateHUD();
-  renderArmyPanel();
-}
-function toggleGuard(index) {
-  if (index < 0 || index >= army.length) return;
-  const s = army[index];
-  const currentGuards = army.filter(x => x.guard).length;
-  if (!s.guard && currentGuards >= MAX_GUARDS) {
-    sfxError();
-    showToast(`❌ Max ${MAX_GUARDS} prajurit mendampingi!`, '#ff4444');
-    return;
-  }
-  s.guard = !s.guard;
-  sfxClick();
-  showToast(s.guard ? `🛡️ ${s.name} mendampingi kamu!` : `${s.name} kembali patroli`, s.guard ? '#ffd700' : '#888');
-  updateHUD();
-  renderArmyPanel();
-  checkAchievements();
-}
-
-function updateArmy(dt) {
-  army.forEach(s => {
-    if (s.hurtFlash > 0) s.hurtFlash--;
-
-    let nearestWolf = null;
-    let nearestDist = 99999;
-    wolves.forEach(w => {
-      const d = Math.hypot(w.x - s.x, w.y - s.y);
-      if (d < 250 && d < nearestDist) {
-        nearestWolf = w;
-        nearestDist = d;
-      }
-    });
-
-    s.attackTimer -= dt;
-
-    if (s.guard) {
-      if (nearestWolf && nearestDist < 150) {
-        chaseAndAttack(s, nearestWolf, dt);
-      } else {
-        const dxp = player.x - s.x;
-        const dyp = player.y - s.y;
-        const distP = Math.hypot(dxp, dyp);
-        if (distP > 45) {
-          const dx = dxp / distP * s.speed * 1.2;
-          const dy = dyp / distP * s.speed * 1.2;
-          if (canMoveTo(s.x + dx, s.y, 10, 14, world)) s.x += dx;
-          if (canMoveTo(s.x, s.y + dy, 10, 14, world)) s.y += dy;
-          if (Math.abs(dx) > Math.abs(dy)) s.dir = dx > 0 ? 'right' : 'left';
-          else s.dir = dy > 0 ? 'down' : 'up';
-          s.animTimer++;
-          if (s.animTimer > 8) { s.animTimer = 0; s.walkFrame = (s.walkFrame + 1) % 4; }
-        } else {
-          s.walkFrame = 0;
-        }
-        s.state = 'guard';
-      }
-      return;
-    }
-
-    if (nearestWolf) {
-      chaseAndAttack(s, nearestWolf, dt);
-    } else {
-      s.state = 'patrol';
-      s.target = null;
-      s.patrolTimer -= dt;
-      if (s.patrolTimer <= 0) {
-        s.patrolTimer = 3 + Math.random() * 4;
-        s.patrolTarget = {
-          x: (8.5 + (Math.random()-0.5)*8) * TILE,
-          y: (22.5 + (Math.random()-0.5)*8) * TILE,
-        };
-      }
-      const dx = s.patrolTarget.x - s.x;
-      const dy = s.patrolTarget.y - s.y;
-      const d = Math.hypot(dx, dy);
-      if (d > 4) {
-        const nx = dx / d * s.speed * 0.5;
-        const ny = dy / d * s.speed * 0.5;
-        if (canMoveTo(s.x + nx, s.y, 10, 14, world)) s.x += nx;
-        if (canMoveTo(s.x, s.y + ny, 10, 14, world)) s.y += ny;
-        if (Math.abs(nx) > Math.abs(ny)) s.dir = nx > 0 ? 'right' : 'left';
-        else s.dir = ny > 0 ? 'down' : 'up';
-        s.animTimer++;
-        if (s.animTimer > 12) { s.animTimer = 0; s.walkFrame = (s.walkFrame + 1) % 4; }
-      }
-    }
-  });
-}
-
-function chaseAndAttack(s, wolf, dt) {
-  const d = Math.hypot(wolf.x - s.x, wolf.y - s.y);
-  s.target = wolf;
-
-  if (d <= s.range) {
-    s.state = 'attack';
-    if (s.attackTimer <= 0) {
-      s.attackTimer = s.attackDelay;
-      if (s.type === 'archer') {
-        const dx = (wolf.x - s.x) / (d || 1);
-        const dy = (wolf.y - s.y) / (d || 1);
-        projectiles.push({
-          x: s.x + 5, y: s.y + 5,
-          vx: dx * 8, vy: dy * 8,
-          life: 60, dmg: s.dmg,
-        });
-        sfxBowShoot();
-      } else {
-        wolf.hp -= s.dmg;
-        wolf.hurtFlash = 10;
-        sfxSword();
-        if (wolf.hp <= 0) {
-          wolves = wolves.filter(wl => wl !== wolf);
-          inventory.pelt += 1;
-          stats.wolvesKilled++;
-          showToast(`⚔️ ${s.name} bunuh wolf! +1 pelt`, '#ff6666');
-          updateHUD(); checkAchievements();
-        }
-      }
-    }
-  } else {
-    s.state = 'chase';
-    const dx = (wolf.x - s.x) / d * s.speed;
-    const dy = (wolf.y - s.y) / d * s.speed;
-    if (canMoveTo(s.x + dx, s.y, 10, 14, world)) s.x += dx;
-    if (canMoveTo(s.x, s.y + dy, 10, 14, world)) s.y += dy;
-    if (Math.abs(dx) > Math.abs(dy)) s.dir = dx > 0 ? 'right' : 'left';
-    else s.dir = dy > 0 ? 'down' : 'up';
-    s.animTimer++;
-    if (s.animTimer > 8) { s.animTimer = 0; s.walkFrame = (s.walkFrame + 1) % 4; }
-  }
-}
-
-// ============================================
-// ==== PANELS ====
-// ============================================
-function renderHirePanel() {
-  const c = document.getElementById('hireContent');
-  if (!c) return;
-  const canAfford = gameGold >= 100;
-  const currentFarmland = countFarmlandTiles();
-  const limit = getWorkerFarmlandLimit();
-  let html = `
-    <div class="shopItem">
-      <div class="info">
-        <div class="emoji">👨‍🌾</div>
-        <div>
-          <div class="name">Petani</div>
-          <div class="price">🪙 100 gold (upah 5g/menit)</div>
-          <div class="desc">Auto: cangkul → tanam → siram → panen</div>
-          <div class="slotInfo">Farmland: ${currentFarmland} / ${limit} tile</div>
-        </div>
-      </div>
-      <button class="hireBtn" ${canAfford ? '' : 'disabled'}>Hire</button>
-    </div>
-    <div style="margin-top:16px;color:#ffed4a;font-weight:bold;text-align:center;font-size:14px">🌱 Pilih Benih yang ditanam petani:</div>
-    <div class="cropSelectRow" id="cropSelectRow">
-      <div class="cropOpt ${workerSeed === 'wheat' ? 'active' : ''}" data-crop="wheat">
-        <span class="cropEmoji">🌾</span>
-        <div class="cropName">Gandum</div>
-        <div class="cropStock">Stok: ${inventory.seeds}</div>
-      </div>
-      <div class="cropOpt ${workerSeed === 'corn' ? 'active' : ''}" data-crop="corn">
-        <span class="cropEmoji">🌽</span>
-        <div class="cropName">Jagung</div>
-        <div class="cropStock">Stok: ${inventory.seeds_corn}</div>
-      </div>
-      <div class="cropOpt ${workerSeed === 'tomato' ? 'active' : ''}" data-crop="tomato">
-        <span class="cropEmoji">🍅</span>
-        <div class="cropName">Tomat</div>
-        <div class="cropStock">Stok: ${inventory.seeds_tomato}</div>
-      </div>
-    </div>
-  `;
-  if (workers.length > 0) {
-    html += `<div style="margin-top:16px;border-top:2px solid #2a2a3e;padding-top:12px;color:#ffed4a;font-weight:bold">👨‍🌾 Petani Kamu (${workers.length})</div>`;
-    workers.forEach((w, i) => {
-      const stateLabels = {
-        idle: 'Nganggur...',
-        hoe: 'Mencangkul 🪓',
-        plant: 'Menanam 🌱',
-        water: 'Menyiram 💧',
-        harvest: 'Memanen 🌾',
-      };
-      const statusText = stateLabels[w.state] || w.state;
-      const statusClass = w.state === 'idle' ? 'idle' : 'working';
-      const cropInfo = CROP_TYPES[w.currentCropType] || CROP_TYPES.wheat;
-      html += `
-        <div class="unitRow">
-          <div class="info">
-            <div class="emoji">👨‍🌾</div>
-            <div>
-              <div class="name">${w.name}</div>
-              <div class="status ${statusClass}">${statusText}</div>
-              <div class="slotInfo">Tanam: ${cropInfo.emoji} ${cropInfo.name}</div>
-            </div>
-          </div>
-          <button data-fire-worker="${i}">Pecat</button>
-        </div>
-      `;
-    });
-  }
-  c.innerHTML = html;
-  
-  c.querySelectorAll('.cropOpt').forEach(el => {
-    el.onclick = () => {
-      workerSeed = el.dataset.crop;
-      sfxClick();
-      renderHirePanel();
-    };
-  });
-  c.querySelectorAll('button[data-fire-worker]').forEach(btn => {
-    btn.onclick = () => fireWorker(parseInt(btn.dataset.fireWorker));
-  });
-  const hireBtn = c.querySelector('.hireBtn');
-  if (hireBtn) hireBtn.onclick = () => { hireWorker(); renderHirePanel(); };
-}
-
-function renderArmyPanel() {
-  const c = document.getElementById('armyContent');
-  if (!c) return;
-  const currentGuards = army.filter(s => s.guard).length;
-  let html = `<div style="color:#ffaa55;font-size:12px;margin-bottom:12px;text-align:center">🛡️ Pengawal: ${currentGuards}/${MAX_GUARDS} (klik 🛡️ buat set guard)</div>`;
-  Object.entries(ARMY_TYPES).forEach(([key, at]) => {
-    const canAfford = gameGold >= at.cost;
-    html += `
-      <div class="shopItem">
-        <div class="info">
-          <div class="emoji">${at.emoji}</div>
-          <div>
-            <div class="name">${at.name}</div>
-            <div class="price">🪙 ${at.cost} gold</div>
-            <div class="desc">${at.desc}</div>
-          </div>
-        </div>
-        <button class="armyBtn" data-recruit="${key}" ${canAfford ? '' : 'disabled'}>Rekrut</button>
-      </div>
-    `;
-  });
-  if (army.length > 0) {
-    html += `<div style="margin-top:16px;border-top:2px solid #2a2a3e;padding-top:12px;color:#ff5555;font-weight:bold">⚔️ Prajurit Kamu (${army.length})</div>`;
-    army.forEach((s, i) => {
-      let statusText = 'Berpatroli';
-      let statusClass = 'idle';
-      if (s.guard) { statusText = '🛡️ Mendampingi kamu'; statusClass = 'guard'; }
-      else if (s.state === 'chase') { statusText = 'Mengejar musuh!'; statusClass = 'fighting'; }
-      else if (s.state === 'attack') { statusText = 'Bertarung!'; statusClass = 'fighting'; }
-      const isGuard = s.guard ? 'guard' : '';
-      html += `
-        <div class="unitRow ${isGuard}">
-          <div class="info">
-            <div class="emoji">${ARMY_TYPES[s.type].emoji}</div>
-            <div>
-              <div class="name">${s.name}</div>
-              <div class="status ${statusClass}">${statusText}</div>
-              <div class="status">❤️ ${Math.round(s.hp)}/${s.hpMax} · ⚔️ ${s.dmg} · 🛡️ ${s.armor}</div>
-            </div>
-          </div>
-          <div>
-            <button class="guardBtn ${s.guard ? 'active' : ''}" data-guard-army="${i}">🛡️</button>
-            <button data-dismiss-army="${i}">Bubarkan</button>
-          </div>
-        </div>
-      `;
-    });
-  }
-  c.innerHTML = html;
-  c.querySelectorAll('button[data-recruit]').forEach(btn => {
-    btn.onclick = () => { recruitSoldier(btn.dataset.recruit); renderArmyPanel(); };
-  });
-  c.querySelectorAll('button[data-dismiss-army]').forEach(btn => {
-    btn.onclick = () => dismissSoldier(parseInt(btn.dataset.dismissArmy));
-  });
-  c.querySelectorAll('button[data-guard-army]').forEach(btn => {
-    btn.onclick = () => toggleGuard(parseInt(btn.dataset.guardArmy));
-  });
-}
-
-function closeAllPanels() {
-  ['shop','inv','achPanel','armyPanel','hirePanel'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-  showInventory = false;
-}
 function toggleHirePanel() {
-  const p = document.getElementById('hirePanel');
-  if (!p) return;
-  if (p.style.display === 'block') p.style.display = 'none';
-  else {
-    ensureAudio();
-    closeAllPanels();
-    p.style.display = 'block';
+  const el = document.getElementById('hirePanel');
+  const isOpen = el.style.display === 'block';
+  closeAllPanels();
+  if (!isOpen) {
+    el.style.display = 'block';
     renderHirePanel();
-    sfxClick();
   }
 }
+
 function toggleArmyPanel() {
-  const p = document.getElementById('armyPanel');
-  if (!p) return;
-  if (p.style.display === 'block') p.style.display = 'none';
-  else {
-    ensureAudio();
-    closeAllPanels();
-    p.style.display = 'block';
+  const el = document.getElementById('armyPanel');
+  const isOpen = el.style.display === 'block';
+  closeAllPanels();
+  if (!isOpen) {
+    el.style.display = 'block';
     renderArmyPanel();
-    sfxClick();
+  }
+}
+
+function toggleInventory() {
+  const el = document.getElementById('inv');
+  const isOpen = el.style.display === 'block';
+  closeAllPanels();
+  if (!isOpen) {
+    el.style.display = 'block';
+    renderInventory();
+    showInventory = true;
+  }
+}
+
+function toggleShop() {
+  const el = document.getElementById('shop');
+  const isOpen = el.style.display === 'block';
+  closeAllPanels();
+  if (!isOpen) {
+    el.style.display = 'block';
+    renderShop('buy');
+  }
+}
+
+function toggleAchievements() {
+  const el = document.getElementById('achPanel');
+  const isOpen = el.style.display === 'block';
+  closeAllPanels();
+  if (!isOpen) {
+    el.style.display = 'block';
+    renderAchievements();
   }
 }
 
 // ============================================
-// ==== FISHING ====
+// ==== INVENTORY ====
 // ============================================
-const fishing = { active: false, state: 'idle', timer: 0, biteWindow: 0, progress: 0, targetTime: 0 };
+const ITEM_INFO = {
+  wheat:      { emoji:'🌾', name:'Gandum', sellPrice:10, food:false },
+  corn:       { emoji:'🌽', name:'Jagung', sellPrice:25, food:false },
+  tomato:     { emoji:'🍅', name:'Tomat',  sellPrice:40, food:false },
+  wood:       { emoji:'🪵', name:'Kayu',   sellPrice:5,  food:false },
+  food:       { emoji:'🍗', name:'Makanan', sellPrice:0, food:true, hunger:30 },
+  seeds:      { emoji:'🌱', name:'Benih Gandum', sellPrice:0 },
+  seeds_corn: { emoji:'🌱', name:'Benih Jagung', sellPrice:0 },
+  seeds_tomato:{ emoji:'🌱', name:'Benih Tomat', sellPrice:0 },
+  arrows:     { emoji:'🏹', name:'Panah',  sellPrice:2 },
+  pelt:       { emoji:'🟫', name:'Kulit',  sellPrice:15 },
+  fish:       { emoji:'🐟', name:'Ikan',   sellPrice:20, food:true, hunger:25 },
+};
 
-function startFishing(tx, ty) {
-  if (fishing.active) return;
-  if (!nearWater) { sfxError(); showToast('❌ Dekati air dulu!', '#ff4444'); return; }
-  fishing.active = true;
-  fishing.state = 'waiting';
-  fishing.timer = 2 + Math.random() * 4;
-  fishing.biteWindow = 0;
-  fishing.progress = 0;
-  sfxFishCast();
-  showFishIndicator('🎣 Menunggu ikan...', 0, 'Sabarrr...');
-}
-function updateFishing(dt) {
-  if (!fishing.active) return;
-  if (fishing.state === 'waiting') {
-    fishing.timer -= dt;
-    if (fishing.timer <= 0) {
-      fishing.state = 'bite';
-      fishing.biteWindow = 1.5;
-      sfxFishBite();
-      showFishIndicator('🐟 IKAN! KLIK SEKARANG!', 100, 'CEPET KLIK!');
-    }
-  } else if (fishing.state === 'bite') {
-    fishing.biteWindow -= dt;
-    if (fishing.biteWindow <= 0) {
-      fishing.active = false;
-      sfxFishMiss();
-      hideFishIndicator();
-      showToast('😢 Ikan kabur!', '#ff6666');
-    }
-  } else if (fishing.state === 'minigame') {
-    fishing.progress += dt * 0.4;
-    fishing.targetTime -= dt;
-    const p = Math.min(1, fishing.progress);
-    showFishIndicator('⚡ Timing!', p * 100,
-      p < 0.4 ? 'Terlalu cepet...' : p < 0.6 ? '✅ PAS! KLIK!' : 'Terlalu lambat...');
-    if (fishing.progress >= 1 || fishing.targetTime <= 0) {
-      fishing.active = false;
-      sfxFishMiss();
-      hideFishIndicator();
-      showToast('😢 Kelewatan!', '#ff6666');
-    }
+function renderInventory() {
+  const grid = document.getElementById('invGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  Object.entries(inventory).forEach(([key, count]) => {
+    if (count <= 0) return;
+    const info = ITEM_INFO[key];
+    if (!info) return;
+    const slot = document.createElement('div');
+    slot.className = 'invSlot';
+    slot.innerHTML = `
+      <div class="emoji">${info.emoji}</div>
+      <div class="name">${info.name}</div>
+      <div class="count">${count}</div>
+    `;
+    slot.onclick = () => {
+      sfxClick();
+      if (info.food) {
+        // Makan
+        const heal = info.hunger || 20;
+        player.hunger = Math.min(player.hungerMax, player.hunger + heal);
+        inventory[key]--;
+        sfxEat();
+        showToast(`🍗 +${heal} hunger`, '#5aff5a');
+        updateHUD();
+        renderInventory();
+      } else if (info.sellPrice > 0) {
+        // Jual
+        gameGold += info.sellPrice * count;
+        if (gameGold > stats.maxGold) stats.maxGold = gameGold;
+        inventory[key] = 0;
+        sfxSell();
+        showToast(`💰 +${info.sellPrice * count}g`, '#ffd700');
+        updateHUD();
+        renderInventory();
+        checkAchievements();
+      }
+    };
+    grid.appendChild(slot);
+  });
+  if (grid.children.length === 0) {
+    grid.innerHTML = '<div style="grid-column:span 5;text-align:center;color:#666;padding:20px">Inventory kosong</div>';
   }
-}
-function clickFish() {
-  if (!fishing.active) return;
-  if (fishing.state === 'bite') {
-    fishing.state = 'minigame';
-    fishing.progress = 0;
-    fishing.targetTime = 2.5;
-    showFishIndicator('⚡ Klik di zona tengah!', 0, 'Tunggu...');
-  } else if (fishing.state === 'minigame') {
-    const diff = Math.abs(fishing.progress - 0.5);
-    if (diff < 0.15) {
-      const fishAmt = 1 + Math.floor(Math.random() * 2);
-      inventory.fish += fishAmt;
-      stats.fishCaught += fishAmt;
-      sfxFishCatch();
-      hideFishIndicator();
-      showToast(`🐟 Dapat ${fishAmt} ikan!`, '#5aff5a');
-      updateHUD(); checkAchievements();
-    } else {
-      sfxFishMiss();
-      hideFishIndicator();
-      showToast('😢 Ikan lepas!', '#ff6666');
-    }
-    fishing.active = false;
-  }
-}
-function showFishIndicator(status, progress, hint) {
-  const st = document.getElementById('fishStatus');
-  const bf = document.getElementById('fishBarFill');
-  const hh = document.getElementById('fishHint');
-  const fi = document.getElementById('fishIndicator');
-  if (st) st.textContent = status;
-  if (bf) bf.style.width = progress + '%';
-  if (hh) hh.textContent = hint;
-  if (fi) fi.style.display = 'block';
-}
-function hideFishIndicator() {
-  const fi = document.getElementById('fishIndicator');
-  if (fi) fi.style.display = 'none';
 }
 
 // ============================================
 // ==== SHOP ====
 // ============================================
-let shopTab = 'buy';
-const SHOP_BUY = [
-  { key: 'seeds', name: 'Benih Gandum', emoji: '🌱', price: 5 },
-  { key: 'seeds_corn', name: 'Benih Jagung', emoji: '🌱', price: 15 },
-  { key: 'seeds_tomato', name: 'Benih Tomat', emoji: '🌱', price: 25 },
-  { key: 'arrows', name: 'Panah x5', emoji: '🏹', price: 20, qty: 5 },
-  { key: 'food', name: 'Roti', emoji: '🍞', price: 15 },
-];
-const SHOP_SELL = [
-  { key: 'wheat', name: 'Gandum', emoji: '🌾', price: 10 },
-  { key: 'corn', name: 'Jagung', emoji: '🌽', price: 25 },
-  { key: 'tomato', name: 'Tomat', emoji: '🍅', price: 40 },
-  { key: 'wood', name: 'Kayu', emoji: '🪵', price: 3 },
-  { key: 'fish', name: 'Ikan', emoji: '🐟', price: 20 },
-  { key: 'pelt', name: 'Kulit Wolf', emoji: '🟤', price: 15 },
-];
-function renderShop() {
-  const content = document.getElementById('shopContent');
-  if (!content) return;
-  content.innerHTML = '';
-  const items = shopTab === 'buy' ? SHOP_BUY : SHOP_SELL;
-  items.forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'shopItem';
-    const qty = item.qty || 1;
-    const canAfford = shopTab === 'buy' ? gameGold >= item.price : (inventory[item.key] || 0) >= qty;
-    const stockInfo = shopTab === 'sell' ? `<div style="color:#888;font-size:11px">Punya: ${inventory[item.key] || 0}</div>` : '';
-    row.innerHTML = `
-      <div class="info">
-        <div class="emoji">${item.emoji}</div>
-        <div>
-          <div class="name">${item.name}${item.qty ? ' x' + item.qty : ''}</div>
-          <div class="price">${shopTab === 'buy' ? '🪙 ' + item.price : '🪙 +' + item.price}</div>
-          ${stockInfo}
+const SHOP_ITEMS = {
+  buy: [
+    { key:'seeds',        emoji:'🌱', name:'Benih Gandum', price:5,  desc:'Grow 400ms' },
+    { key:'seeds_corn',   emoji:'🌱', name:'Benih Jagung', price:15, desc:'Grow 600ms' },
+    { key:'seeds_tomato', emoji:'🌱', name:'Benih Tomat',  price:25, desc:'Grow 800ms' },
+    { key:'food',         emoji:'🍗', name:'Makanan',      price:20, desc:'+30 hunger' },
+    { key:'arrows',       emoji:'🏹', name:'Panah x5',     price:10, desc:'Buat bow' },
+  ],
+  sell: [
+    { key:'wheat',  emoji:'🌾', name:'Gandum', price:10 },
+    { key:'corn',   emoji:'🌽', name:'Jagung', price:25 },
+    { key:'tomato', emoji:'🍅', name:'Tomat',  price:40 },
+    { key:'wood',   emoji:'🪵', name:'Kayu',   price:5 },
+    { key:'pelt',   emoji:'🟫', name:'Kulit',  price:15 },
+    { key:'fish',   emoji:'🐟', name:'Ikan',   price:20 },
+  ],
+};
+
+function renderShop(tab) {
+  const c = document.getElementById('shopContent');
+  if (!c) return;
+  const tabs = document.querySelectorAll('.shopTab');
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+
+  if (tab === 'buy') {
+    c.innerHTML = SHOP_ITEMS.buy.map(item => {
+      const canAfford = gameGold >= item.price;
+      return `
+        <div class="shopItem">
+          <div class="info">
+            <div class="emoji">${item.emoji}</div>
+            <div>
+              <div class="name">${item.name}</div>
+              <div class="price">🪙 ${item.price}</div>
+              <div class="desc">${item.desc}</div>
+            </div>
+          </div>
+          <button data-buy="${item.key}" data-price="${item.price}" ${canAfford ? '' : 'disabled'}>Beli</button>
         </div>
-      </div>
-      <button ${canAfford ? '' : 'disabled'}>${shopTab === 'buy' ? 'Beli' : 'Jual'}</button>
-    `;
-    row.querySelector('button').onclick = () => {
-      if (shopTab === 'buy') buyItem(item);
-      else sellItem(item);
+      `;
+    }).join('');
+  } else {
+    c.innerHTML = SHOP_ITEMS.sell.map(item => {
+      const have = inventory[item.key] || 0;
+      return `
+        <div class="shopItem">
+          <div class="info">
+            <div class="emoji">${item.emoji}</div>
+            <div>
+              <div class="name">${item.name}</div>
+              <div class="price">🪙 ${item.price} each</div>
+              <div class="desc">Punya: ${have}</div>
+            </div>
+          </div>
+          <button data-sell="${item.key}" data-price="${item.price}" ${have > 0 ? '' : 'disabled'}>Jual 1</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  c.querySelectorAll('button[data-buy]').forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.dataset.buy;
+      const price = parseInt(btn.dataset.price);
+      if (gameGold < price) { sfxError(); return; }
+      gameGold -= price;
+      if (key === 'arrows') inventory.arrows = (inventory.arrows || 0) + 5;
+      else inventory[key] = (inventory[key] || 0) + 1;
+      stats.shopPurchases++;
+      sfxBuy();
+      showToast(`🛒 Beli ${key}`, '#5aff5a');
+      updateHUD();
+      renderShop('buy');
+      checkAchievements();
     };
-    content.appendChild(row);
+  });
+
+  c.querySelectorAll('button[data-sell]').forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.dataset.sell;
+      const price = parseInt(btn.dataset.price);
+      if ((inventory[key] || 0) <= 0) return;
+      inventory[key]--;
+      gameGold += price;
+      if (gameGold > stats.maxGold) stats.maxGold = gameGold;
+      sfxSell();
+      showToast(`💰 +${price}g`, '#ffd700');
+      updateHUD();
+      renderShop('sell');
+      checkAchievements();
+    };
   });
 }
-function buyItem(item) {
-  if (gameGold < item.price) { sfxError(); showToast('❌ Gold nggak cukup', '#ff4444'); return; }
-  gameGold -= item.price;
-  const qty = item.qty || 1;
-  inventory[item.key] = (inventory[item.key] || 0) + qty;
-  stats.shopPurchases++;
-  sfxBuy();
-  showToast(`🛒 Beli ${item.name}!`, '#5aff5a');
-  updateHUD(); renderShop(); checkAchievements();
-}
-function sellItem(item) {
-  const qty = item.qty || 1;
-  if ((inventory[item.key] || 0) < qty) { sfxError(); showToast('❌ Barang kurang', '#ff4444'); return; }
-  inventory[item.key] -= qty;
-  gameGold += item.price;
-  if (gameGold > stats.maxGold) stats.maxGold = gameGold;
-  sfxSell();
-  showToast(`💰 Jual ${item.name} +${item.price} gold`, '#ffed4a');
-  updateHUD(); renderShop(); checkAchievements();
-}
-function toggleShop() {
-  const shop = document.getElementById('shop');
-  if (!shop) return;
-  if (shop.style.display === 'block') shop.style.display = 'none';
-  else {
-    ensureAudio();
-    closeAllPanels();
-    shop.style.display = 'block';
-    renderShop(); sfxClick();
-  }
-}
-function renderAchPanel() {
+
+// ============================================
+// ==== ACHIEVEMENTS ====
+// ============================================
+function renderAchievements() {
   const grid = document.getElementById('achGrid');
   if (!grid) return;
   grid.innerHTML = '';
-  Object.entries(achievements).forEach(([k, a]) => {
+  Object.entries(achievements).forEach(([key, a]) => {
     const div = document.createElement('div');
     div.className = 'achItem' + (a.unlocked ? ' unlocked' : '');
     div.innerHTML = `
       <div class="emoji">${a.emoji}</div>
       <div>
-        <div class="achName">${a.unlocked ? a.name : '???'}</div>
+        <div class="achName">${a.name}</div>
         <div class="achDesc">${a.desc}</div>
       </div>
     `;
     grid.appendChild(div);
   });
 }
-function toggleAch() {
-  const p = document.getElementById('achPanel');
-  if (!p) return;
-  if (p.style.display === 'block') p.style.display = 'none';
-  else {
-    closeAllPanels();
-    renderAchPanel(); p.style.display = 'block'; sfxClick();
-  }
-}
 
 // ============================================
-// ==== SAVE/LOAD ====
+// ==== CROP GROWTH ====
 // ============================================
-function saveGame() {
-  const data = {
-    world, crops, trees, inventory, gameGold,
-    player: { x: player.x, y: player.y, hp: player.hp, hunger: player.hunger },
-    time: { totalMinutes: time.totalMinutes, day: time.day },
-    animals: animals.filter(a => !a.dead),
-    workers: workers.map(w => ({ 
-      x:w.x, y:w.y, name:w.name, salary:w.salary, state:w.state,
-      currentCropType: w.currentCropType || 'wheat',
-    })),
-    army: army.map(s => ({ x:s.x, y:s.y, type:s.type, hp:s.hp, name:s.name, guard: s.guard })),
-    workerSeed: workerSeed,
-    achievements: Object.fromEntries(Object.entries(achievements).map(([k,a]) => [k, a.unlocked])),
-    stats: { ...stats, cropsPlanted: [...stats.cropsPlanted] },
-  };
-  try {
-    localStorage.setItem('pixelFarmSave', JSON.stringify(data));
-    showSaveIndicator();
-    return true;
-  } catch(e) { return false; }
-}
-function loadGame() {
-  try {
-    const raw = localStorage.getItem('pixelFarmSave');
-    if (!raw) return false;
-    const data = JSON.parse(raw);
-    if (!data.world) return false;
-    world = data.world;
-    Object.keys(crops).forEach(k => delete crops[k]);
-    Object.keys(data.crops || {}).forEach(k => crops[k] = data.crops[k]);
-    Object.keys(trees).forEach(k => delete trees[k]);
-    Object.keys(data.trees || {}).forEach(k => trees[k] = data.trees[k]);
-    Object.keys(inventory).forEach(k => inventory[k] = (data.inventory && data.inventory[k] != null) ? data.inventory[k] : inventory[k]);
-    gameGold = data.gameGold || 500;
-    player.x = data.player.x; player.y = data.player.y;
-    player.hp = data.player.hp; player.hunger = data.player.hunger;
-    time.totalMinutes = data.time.totalMinutes; time.day = data.time.day;
-    if (data.workerSeed) workerSeed = data.workerSeed;
-    animals = (data.animals || []).map(a => ({
-      ...a, vx:0, vy:0, hurtFlash:0, dead:false, animTimer:0, walkFrame:0, pauseTimer:0, wanderTimer:0, wanderAngle:0
-    }));
-    workers = [];
-    if (data.workers) {
-      data.workers.forEach(w => {
-        workers.push({
-          x: w.x, y: w.y, w: 10, h: 14,
-          name: w.name || 'Petani',
-          color: '#8b6f47', shirt: '#5a8a3a',
-          speed: 0.6, actionDelay: 1.5, actionTimer: 0,
-          dir: 'down', animTimer: 0, walkFrame: 0,
-          state: 'idle', targetTile: null, salary: w.salary || 5,
-          salaryTimer: 60,
-          currentCropType: w.currentCropType || 'wheat',
-        });
-      });
-    }
-    army = [];
-    if (data.army) {
-      data.army.forEach(a => {
-        const at = ARMY_TYPES[a.type];
-        if (!at) return;
-        army.push({
-          x: a.x, y: a.y, w: 10, h: 14,
-          type: a.type, name: a.name || at.name,
-          color: at.color, shirt: at.shirt,
-          hp: a.hp || at.hp, hpMax: at.hpMax,
-          dmg: at.dmg, range: at.range, speed: at.speed,
-          attackDelay: at.attackDelay, attackTimer: 0,
-          armor: at.armor,
-          armorColor: at.armorColor,
-          armorStyle: at.armorStyle,
-          hurtFlash: 0,
-          dir: 'down', animTimer: 0, walkFrame: 0,
-          state: 'patrol', target: null,
-          patrolTarget: { x: 8.5*TILE, y: 22.5*TILE }, patrolTimer: Math.random()*3,
-          guard: !!a.guard,
-        });
-      });
-    }
-    if (data.achievements) {
-      Object.entries(data.achievements).forEach(([k, v]) => {
-        if (achievements[k]) achievements[k].unlocked = v;
-      });
-    }
-    if (data.stats) {
-      Object.assign(stats, data.stats);
-      stats.cropsPlanted = new Set(data.stats.cropsPlanted || []);
-    }
-    return true;
-  } catch(e) { return false; }
-}
-function showSaveIndicator() {
-  const el = document.getElementById('saveIndicator');
-  if (!el) return;
-  el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 1500);
-}
-
-// ============================================
-// ==== GAMEPLAY ====
-// ============================================
-function checkNearbyInteriorTiles() {
-  nearDoor = false; nearBed = false; nearShop = false;
-  nearShopTile = null;
-  const bodyPoints = [
-    {x: player.x, y: player.y},
-    {x: player.x + player.w - 1, y: player.y},
-    {x: player.x, y: player.y + player.h - 1},
-    {x: player.x + player.w - 1, y: player.y + player.h - 1},
-    {x: player.x + player.w/2, y: player.y + player.h/2},
-  ];
-  if (currentInterior) {
-    const ptx = Math.floor((player.x + player.w/2) / TILE);
-    const pty = Math.floor((player.y + player.h/2) / TILE);
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const tx = ptx + dx, ty = pty + dy;
-        if (tx>=0 && ty>=0 && tx<currentInterior.world[0].length && ty<currentInterior.world.length) {
-          if (currentInterior.world[ty][tx] === T_BED) nearBed = true;
-          if (currentInterior.world[ty][tx] === T_HOUSE_DOOR) nearDoor = true;
-        }
+function updateCrops(dt) {
+  Object.entries(crops).forEach(([key, c]) => {
+    if (!c || c.stage < 0 || c.stage >= 3) return;
+    if (!c.watered) return;
+    c.timer = (c.timer || 0) + dt * 16;
+    if (c.timer >= (c.growTime || 400) / 3) {
+      c.timer = 0;
+      c.stage++;
+      c.watered = false;
+      if (c.stage >= 3) {
+        // Ready to harvest
       }
     }
-    bodyPoints.forEach(p => {
-      const tx = Math.floor(p.x / TILE), ty = Math.floor(p.y / TILE);
-      if (tx>=0 && ty>=0 && tx<currentInterior.world[0].length && ty<currentInterior.world.length) {
-        if (currentInterior.world[ty][tx] === T_BED) nearBed = true;
-        if (currentInterior.world[ty][tx] === T_HOUSE_DOOR) nearDoor = true;
-      }
-    });
-  } else {
-    bodyPoints.forEach(p => {
-      const tx = Math.floor(p.x / TILE), ty = Math.floor(p.y / TILE);
-      if (tx>=0 && ty>=0 && tx<WORLD_W && ty<WORLD_H) {
-        if (world[ty][tx] === T_HOUSE_DOOR) nearDoor = true;
-        if (world[ty][tx] === T_SHOP) { nearShop = true; nearShopTile = {x:tx, y:ty}; }
-      }
-    });
-    if (!nearShop) {
-      const ptx = Math.floor((player.x + player.w/2) / TILE);
-      const pty = Math.floor((player.y + player.h/2) / TILE);
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const tx = ptx + dx, ty = pty + dy;
-          if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
-            if (world[ty][tx] === T_SHOP) { nearShop = true; nearShopTile = {x:tx, y:ty}; }
-          }
-        }
-      }
-    }
-  }
-}
-function checkNearWater() {
-  const ptx = Math.floor((player.x + player.w/2) / TILE);
-  const pty = Math.floor((player.y + player.h/2) / TILE);
-  nearWater = false;
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const tx = ptx + dx, ty = pty + dy;
-      if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
-        if (world[ty] && world[ty][tx] === T_WATER) { nearWater = true; return; }
-      }
-    }
-  }
-}
-function enterHouse(doorX, doorY) {
-  let houseId = 0;
-  if (doorX < 12) houseId = 0;
-  else if (doorX < 25) houseId = 1;
-  else houseId = 2;
-  const interior = interiors[houseId];
-  currentInterior = {
-    id: houseId,
-    world: JSON.parse(JSON.stringify(interior.world)),
-    exitDoor: { x: 10, y: 0 },
-  };
-  player.x = interior.playerSpawn.x;
-  player.y = interior.playerSpawn.y;
-  player.dir = 'down';
-  sfxDoor();
-  showToast('🏠 Masuk rumah — cari kasur (kiri-atas), tekan E', '#4a90e2');
-  startMusic('interior');
-  doorCooldown = 1.5;
-}
-function exitInterior() {
-  const houseId = currentInterior.id;
-  let doorX, doorY;
-  if (houseId === 0) { doorX = 6; doorY = 12; }
-  else if (houseId === 1) { doorX = 19; doorY = 12; }
-  else { doorX = 32; doorY = 12; }
-  player.x = doorX * TILE + 3;
-  player.y = (doorY + 2) * TILE;
-  currentInterior = null;
-  sfxDoor();
-  showToast('🚪 Keluar rumah', '#4a90e2');
-  startMusic(getTimeOfDay());
-  doorCooldown = 1.5;
-}
-function sleep() {
-  const h = Math.floor(time.totalMinutes/60)%24;
-  let skipMinutes;
-  if (h >= 6 && h < 18) skipMinutes = (24 - h + 6) * 60;
-  else skipMinutes = ((6 - h + 24) % 24) * 60;
-  time.totalMinutes += skipMinutes;
-  while (time.totalMinutes >= 24*60) { time.totalMinutes -= 24*60; time.day++; }
-  player.hp = player.hpMax;
-  player.hunger = Math.max(50, player.hunger);
-  player.x = 10*TILE; player.y = 9*TILE; player.dir = 'down';
-  wolves = []; arrows = [];
-  stats.sleepCount++;
-  sfxSleep();
-  showToast('😴 Tidur... Pagi!', '#5aff5a');
-  startMusic('dawn');
-  showBlackFade();
-  checkAchievements();
-}
-function showBlackFade() {
-  const f = document.getElementById('damageFlash');
-  if (!f) return;
-  f.style.background = 'black';
-  f.style.opacity = '1';
-  f.style.transition = 'opacity 1s';
-  setTimeout(() => {
-    f.style.opacity = '0';
-    setTimeout(() => {
-      f.style.background = 'radial-gradient(circle, transparent 30%, rgba(255,0,0,0.6) 100%)';
-      f.style.transition = 'opacity 0.2s';
-    }, 1000);
-  }, 500);
-}
-function doInteractE() {
-  if (currentInterior) {
-    if (nearBed) { sleep(); return; }
-    showToast('💡 Cari kasur di kiri-atas rumah', '#ffed4a');
-    return;
-  }
-  if (nearShop) { toggleShop(); return; }
-  for (const npc of npcs) {
-    const dx = npc.x - player.x, dy = npc.y - player.y;
-    if (Math.hypot(dx, dy) < 40) {
-      showDialog(`[${npc.name}] ${npc.dialog}`);
-      sfxClick();
-      return;
-    }
-  }
-  showToast('💡 Tidak ada yang bisa diinteraksi', '#888');
-}
-function attackAnimal(a) {
-  const dmg = 10 + Math.floor(Math.random()*8);
-  a.hp -= dmg; a.hurtFlash = 10; a.wanderTimer = 0;
-  const dx = a.x - player.x, dy = a.y - player.y;
-  const d = Math.hypot(dx, dy) || 1;
-  a.vx = dx/d*4; a.vy = dy/d*4;
-  sfxAnimalHurt();
-  if (a.hp <= 0) {
-    a.dead = true;
-    const amt = ANIMAL_TYPES[a.type].dropAmt;
-    inventory.food += amt;
-    stats.animalsKilled++;
-    sfxHarvest(); showToast(`🐾 +${amt} food`, '#ffaa00');
-    updateHUD(); checkAchievements();
-    setTimeout(() => spawnSingleAnimal(a.type), 30000);
-  } else showToast(`⚔️ -${dmg} HP`, '#ff6666');
-}
-function attackWolf(w) {
-  const dmg = 12 + Math.floor(Math.random()*10);
-  w.hp -= dmg; w.hurtFlash = 10;
-  sfxHit();
-  if (w.hp <= 0) {
-    wolves = wolves.filter(wl => wl !== w);
-    inventory.pelt += 1;
-    stats.wolvesKilled++;
-    sfxHarvest(); showToast('🐺 Wolf killed! +1 pelt', '#ff6666');
-    updateHUD(); checkAchievements();
-  } else showToast(`⚔️ Wolf -${dmg} HP`, '#ff6666');
-}
-function sellAll() {
-  ensureAudio();
-  const prices = { wheat:10, corn:25, tomato:40, wood:3, pelt:15, fish:20 };
-  let total = 0;
-  Object.entries(prices).forEach(([k, p]) => {
-    total += (inventory[k] || 0) * p;
-    inventory[k] = 0;
   });
-  if (total === 0) { sfxError(); showToast('❌ Nggak ada yang dijual', '#ff4444'); return; }
-  gameGold += total;
-  if (gameGold > stats.maxGold) stats.maxGold = gameGold;
-  sfxSell(); showToast(`🪙 +${total} gold!`, '#ffed4a');
-  updateHUD(); checkAchievements();
 }
-function toggleMute() {
-  muted = !muted;
-  const ic = document.getElementById('muteIcon');
-  if (ic) ic.textContent = muted ? '🔇' : '🔊';
-  if (masterGain) masterGain.gain.value = muted ? 0 : masterVolume;
-  sfxClick();
-}
-function applyTool(tx, ty) {
-  if (currentInterior) return;
+
+// ============================================
+// ==== TOOLS ====
+// ============================================
+function useTool(worldX, worldY) {
+  const tx = Math.floor(worldX / TILE);
+  const ty = Math.floor(worldY / TILE);
   if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
   const t = world[ty][tx];
   const key = `${tx},${ty}`;
-  if (currentTool === 'rod') { startFishing(tx, ty); return; }
-  if (currentTool === 'bow') {
-    if (inventory.arrows <= 0) { sfxError(); showToast('❌ Panah habis!', '#ff4444'); return; }
-    if (player.attackCooldown > 0) return;
-    inventory.arrows--;
-    player.attackCooldown = 0.4;
-    const dx = mouse.tx*TILE + TILE/2 - (player.x + player.w/2);
-    const dy = mouse.ty*TILE + TILE/2 - (player.y + player.h/2);
-    const d = Math.hypot(dx, dy) || 1;
-    arrows.push({
-      x: player.x + player.w/2, y: player.y + player.h/2,
-      vx: dx/d*12, vy: dy/d*12, life: 60,
-    });
-    sfxBowShoot(); updateHUD(); return;
-  }
-  if (currentTool === 'sword') {
-    if (player.attackCooldown > 0) return;
-    player.attackCooldown = 0.3;
-    sfxHit();
-    const a = getAnimalAt(tx, ty);
-    if (a) { attackAnimal(a); return; }
-    const w = getWolfAt(tx, ty);
-    if (w) { attackWolf(w); return; }
-    return;
-  }
-  if (!currentTool) return;
+
   if (currentTool === 'hoe') {
     if (t === T_GRASS || t === T_FLOWER) {
-      const farmlandCount = countFarmlandTiles();
-      const limit = getWorkerFarmlandLimit();
-      if (workers.length > 0 && farmlandCount >= limit) {
-        sfxError();
-        showToast(`❌ Max ${limit} tile (${workers.length} petani × 6). Hire petani lagi!`, '#ff4444');
-        return;
-      }
-      world[ty][tx] = T_FARMLAND; crops[key] = { stage: -1 };
-      sfxHoe(); showToast('🪓 Dicangkul!', '#a07040');
-    } else sfxError();
+      world[ty][tx] = T_FARMLAND;
+      crops[key] = { stage: -1 };
+      sfxHoe();
+    }
   } else if (currentTool === 'seed') {
     if (t === T_FARMLAND) {
       const seedKey = getSeedKey(currentSeed);
-      if (inventory[seedKey] <= 0) {
-        sfxError(); showToast(`❌ Benih ${CROP_TYPES[currentSeed].name} habis!`, '#ff4444');
-        return;
+      if (inventory[seedKey] > 0) {
+        inventory[seedKey]--;
+        world[ty][tx] = T_CROP;
+        const cropInfo = CROP_TYPES[currentSeed];
+        crops[key] = { stage:0, watered:false, timer:0, type:currentSeed, growTime:cropInfo.growTime };
+        stats.cropsPlanted.add(currentSeed);
+        sfxSeed();
+        updateHUD();
+      } else {
+        sfxError();
+        showToast('❌ Benih habis!', '#ff4444');
       }
-      inventory[seedKey]--;
-      world[ty][tx] = T_CROP;
-      crops[key] = {
-        stage: 0, watered: false, timer: 0,
-        type: currentSeed, growTime: CROP_TYPES[currentSeed].growTime
-      };
-      stats.cropsPlanted.add(currentSeed);
-      sfxSeed(); showToast(`🌱 ${CROP_TYPES[currentSeed].name} ditanam!`, '#5aff5a');
-      updateHUD(); checkAchievements();
-    } else sfxError();
+    }
   } else if (currentTool === 'water') {
-    if (t === T_CROP && crops[key] && crops[key].stage < 3 && !crops[key].watered) {
+    if (t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) {
       crops[key].watered = true;
-      sfxWater(); showToast('💧 Disiram!', '#4a90e2');
-    } else sfxError();
+      sfxWater();
+    }
   } else if (currentTool === 'harvest') {
     if (t === T_CROP && crops[key] && crops[key].stage >= 3) {
       const cropType = crops[key].type || 'wheat';
@@ -1908,1070 +293,1304 @@ function applyTool(tx, ty) {
       world[ty][tx] = T_FARMLAND;
       crops[key] = { stage: -1 };
       sfxHarvest();
-      showToast(`${CROP_TYPES[cropType].emoji} Panen ${CROP_TYPES[cropType].name}! +1`, '#ffed4a');
-      updateHUD(); checkAchievements();
-    } else sfxError();
+      showToast(`🌾 +1 ${CROP_TYPES[cropType].emoji}`, '#5aff5a');
+      updateHUD();
+      checkAchievements();
+    }
   } else if (currentTool === 'axe') {
     if (t === T_TREE) {
+      delete trees[key];
       world[ty][tx] = T_STUMP;
-      trees[key] = { stage: -1, timer: 0 };
-      inventory.wood += 3;
+      inventory.wood = (inventory.wood || 0) + 3;
       stats.treesChopped++;
-      sfxAxe(); showToast('🪓 Tebang! +3 kayu', '#a07040');
-      updateHUD(); checkAchievements();
-    } else sfxError();
-  } else if (currentTool === 'shovel') {
-    if (t === T_FARMLAND || t === T_CROP || t === T_STUMP || t === T_SAPLING) {
-      if (crops[key]) delete crops[key];
-      if (trees[key]) delete trees[key];
-      world[ty][tx] = T_GRASS;
-      sfxShovel();
-      showToast('🪏 Dibersihin ke rumput!', '#5aff5a');
+      sfxAxe();
+      showToast('🪵 +3 kayu', '#5aff5a');
       updateHUD();
-    } else if (t === T_FLOWER) {
+      checkAchievements();
+    } else if (t === T_SAPLING) {
+      world[ty][tx] = T_GRASS;
+      inventory.wood = (inventory.wood || 0) + 1;
+      sfxAxe();
+      updateHUD();
+    }
+  } else if (currentTool === 'shovel') {
+    if (t === T_FARMLAND || t === T_CROP) {
+      delete crops[key];
       world[ty][tx] = T_GRASS;
       sfxShovel();
-      showToast('🪏 Bunga dibersihin', '#5aff5a');
+    } else if (t === T_STUMP) {
+      world[ty][tx] = T_GRASS;
+      sfxShovel();
+    }
+  } else if (currentTool === 'sword') {
+    // Attack nearby animals/wolves
+    attackNearby(worldX, worldY);
+  } else if (currentTool === 'bow') {
+    if (inventory.arrows > 0) {
+      inventory.arrows--;
+      // Shoot in player facing direction
+      const dx = player.dir === 'right' ? 1 : player.dir === 'left' ? -1 : 0;
+      const dy = player.dir === 'down' ? 1 : player.dir === 'up' ? -1 : 0;
+      projectiles.push({
+        x: player.x + 5, y: player.y + 5,
+        vx: dx * 8, vy: dy * 8,
+        life: 60, dmg: 12, fromPlayer: true,
+      });
+      sfxBowShoot();
+      updateHUD();
     } else {
       sfxError();
-      showToast('❌ Cuma buat tanah/tanaman', '#ff4444');
+      showToast('❌ Panah habis!', '#ff4444');
     }
+  } else if (currentTool === 'rod') {
+    startFishing(worldX, worldY);
   }
 }
-function toggleTool(tool) {
-  if (currentTool === tool) {
-    currentTool = null; showToast('🚫 Tool dilepas', '#888'); sfxClick();
-    const sp = document.getElementById('seedPickerWrap');
-    if (sp) sp.style.display = 'none';
+
+function attackNearby(wx, wy) {
+  const tx = Math.floor(wx / TILE);
+  const ty = Math.floor(wy / TILE);
+  const animal = getAnimalAt(tx, ty);
+  const wolf = getWolfAt(tx, ty);
+  if (wolf) {
+    wolf.hp -= 20;
+    wolf.hurtFlash = 10;
+    sfxSword();
+    if (wolf.hp <= 0) {
+      wolves = wolves.filter(w => w !== wolf);
+      inventory.pelt = (inventory.pelt || 0) + 1;
+      stats.wolvesKilled++;
+      showToast('⚔️ Wolf dibunuh! +1 pelt', '#ff6666');
+      updateHUD();
+      checkAchievements();
+    }
+  } else if (animal && !animal.dead) {
+    animal.hp -= 20;
+    animal.hurtFlash = 10;
+    sfxHit();
+    if (animal.hp <= 0) {
+      animal.dead = true;
+      const t = ANIMAL_TYPES[animal.type];
+      inventory.food = (inventory.food || 0) + t.dropAmt;
+      stats.animalsKilled++;
+      sfxAnimalHurt();
+      showToast(`🍗 +${t.dropAmt} makanan`, '#5aff5a');
+      updateHUD();
+      checkAchievements();
+    }
   } else {
-    currentTool = tool;
-    const names = { hoe:'🪓 Hoe', seed:'🌱 Seed', water:'💧 Water', harvest:'🌾 Harvest', axe:'🪓 Axe', sword:'⚔️ Sword', bow:'🏹 Bow', rod:'🎣 Fishing Rod', shovel:'🪏 Shovel' };
-    showToast(`${names[tool] || tool} dipilih`, '#ffed4a'); sfxClick();
-    const sp = document.getElementById('seedPickerWrap');
-    if (sp) sp.style.display = (tool === 'seed') ? 'block' : 'none';
+    sfxHit();
   }
-  updateToolbarUI();
 }
-function updateToolbarUI() {
-  document.querySelectorAll('.tool').forEach(el => {
-    el.classList.toggle('active', el.dataset.tool === currentTool);
-  });
-}
-const ITEM_NAMES = {
-  wheat: { emoji:'🌾', name:'Gandum' }, corn: { emoji:'🌽', name:'Jagung' },
-  tomato: { emoji:'🍅', name:'Tomat' }, wood: { emoji:'🪵', name:'Kayu' },
-  food: { emoji:'🍗', name:'Makanan' }, seeds: { emoji:'🌱', name:'Benih G' },
-  seeds_corn: { emoji:'🌱', name:'Benih J' }, seeds_tomato: { emoji:'🌱', name:'Benih T' },
-  arrows: { emoji:'🏹', name:'Panah' }, pelt: { emoji:'🟤', name:'Kulit' },
-  fish: { emoji:'🐟', name:'Ikan' },
-};
-function renderInventory() {
-  const grid = document.getElementById('invGrid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  const items = [];
-  for (const [k, v] of Object.entries(inventory)) {
-    if (ITEM_NAMES[k]) items.push({ key: k, count: v, ...ITEM_NAMES[k] });
-  }
-  for (let i=0; i<20; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'invSlot';
-    if (i < items.length && items[i].count > 0) {
-      const item = items[i];
-      slot.innerHTML = `<div class="emoji">${item.emoji}</div><div class="name">${item.name}</div><div class="count">${item.count}</div>`;
-      slot.onclick = () => useItem(item.key);
+
+// ============================================
+// ==== FISHING MINI-GAME ====
+// ============================================
+let fishing = { active:false, timer:0, duration:0, barPos:0, barDir:1, phase:'waiting' };
+
+function startFishing(wx, wy) {
+  // Cek apakah tile sekitar adalah water
+  const tx = Math.floor(wx / TILE);
+  const ty = Math.floor(wy / TILE);
+  let nearWater = false;
+  for (let dy=-1; dy<=1; dy++) {
+    for (let dx=-1; dx<=1; dx++) {
+      if (world[ty+dy] && world[ty+dy][tx+dx] === T_WATER) nearWater = true;
     }
-    grid.appendChild(slot);
   }
+  if (!nearWater) {
+    sfxError();
+    showToast('❌ Harus di dekat air!', '#ff4444');
+    return;
+  }
+  fishing.active = true;
+  fishing.phase = 'waiting';
+  fishing.timer = 0;
+  fishing.duration = 1.5 + Math.random() * 2;
+  document.getElementById('fishIndicator').style.display = 'block';
+  document.getElementById('fishStatus').textContent = 'Menunggu ikan...';
+  document.getElementById('fishBarFill').style.width = '0%';
+  document.getElementById('fishHint').textContent = '';
+  sfxFishCast();
 }
-function toggleInventory() {
-  showInventory = !showInventory;
-  const inv = document.getElementById('inv');
-  if (!inv) return;
-  if (showInventory) {
-    closeAllPanels();
-    renderInventory(); inv.style.display = 'block'; sfxClick();
-    showInventory = true;
-  } else inv.style.display = 'none';
-}
-function useItem(key) {
-  ensureAudio();
-  if (key === 'food' && inventory.food > 0) {
-    if (player.hunger >= player.hungerMax && player.hp >= player.hpMax) {
-      showToast('❌ Udah kenyang!', '#ff4444'); sfxError(); return;
+
+function updateFishing(dt) {
+  if (!fishing.active) return;
+  fishing.timer += dt;
+  const indicator = document.getElementById('fishIndicator');
+  if (!indicator) return;
+
+  if (fishing.phase === 'waiting') {
+    if (fishing.timer >= fishing.duration) {
+      fishing.phase = 'action';
+      fishing.timer = 0;
+      fishing.barPos = 0;
+      fishing.barDir = 1;
+      document.getElementById('fishStatus').textContent = '🐟 IKAN! Tekan SPASI!';
+      document.getElementById('fishHint').textContent = 'SPASI untuk strike!';
+      sfxFishBite();
     }
-    inventory.food--;
-    player.hunger = Math.min(player.hungerMax, player.hunger + 30);
-    player.hp = Math.min(player.hpMax, player.hp + 15);
-    sfxEat(); showToast('🍗 +30 hunger +15 HP', '#5aff5a');
-    updateHUD(); renderInventory();
-  } else if (key === 'fish' && inventory.fish > 0) {
-    inventory.fish--;
-    player.hunger = Math.min(player.hungerMax, player.hunger + 20);
-    player.hp = Math.min(player.hpMax, player.hp + 10);
-    sfxEat(); showToast('🐟 +20 hunger +10 HP', '#5aff5a');
-    updateHUD(); renderInventory();
-  } else if (['wheat','corn','tomato','wood','pelt'].includes(key) && inventory[key] > 0) {
-    const prices = { wheat:10, corn:25, tomato:40, wood:3, pelt:15 };
-    const e = inventory[key] * prices[key];
-    inventory[key] = 0; gameGold += e;
-    if (gameGold > stats.maxGold) stats.maxGold = gameGold;
-    sfxSell(); showToast(`💰 +${e} gold!`, '#ffed4a');
-    updateHUD(); renderInventory(); checkAchievements();
-  } else if (key === 'arrows') showToast('🏹 Pakai tool Bow', '#ffed4a');
-  else if (key && key.startsWith('seeds')) showToast('🌱 Pakai tool Seed', '#ffed4a');
+  } else if (fishing.phase === 'action') {
+    // Bar bergerak
+    fishing.barPos += fishing.barDir * dt * 120;
+    if (fishing.barPos >= 100) { fishing.barPos = 100; fishing.barDir = -1; }
+    if (fishing.barPos <= 0) { fishing.barPos = 0; fishing.barDir = 1; }
+    document.getElementById('fishBarFill').style.width = fishing.barPos + '%';
+    fishing.timer += dt;
+    if (fishing.timer > 1.2) {
+      // Gagal
+      fishing.active = false;
+      indicator.style.display = 'none';
+      sfxFishMiss();
+      showToast('❌ Ikan lepas...', '#ff4444');
+    }
+  }
 }
 
-// ============================================
-// ==== INPUT ====
-// ============================================
-const keys = {};
-let mouse = { x:0, y:0, tx:0, ty:0, inside:false };
-let isMouseDown = false, lastDragTile = null;
-
-document.addEventListener('keydown', e => {
-  const k = e.key.toLowerCase();
-  keys[k] = true;
-  if (k === '1') toggleTool('hoe');
-  if (k === '2') toggleTool('seed');
-  if (k === '3') toggleTool('water');
-  if (k === '4') toggleTool('harvest');
-  if (k === '5') toggleTool('axe');
-  if (k === '6') toggleTool('sword');
-  if (k === '7') toggleTool('bow');
-  if (k === '8') toggleTool('rod');
-  if (k === '9') toggleTool('shovel');
-  if (k === 'i') toggleInventory();
-  if (k === 'm') toggleMute();
-  if (k === 'j') sellAll();
-  if (k === 'b') { ensureAudio(); toggleShop(); }
-  if (k === 'h') { ensureAudio(); toggleHirePanel(); }
-  if (k === 'r') { ensureAudio(); toggleArmyPanel(); }
-  if (k === 'g') {
-    ensureAudio();
-    const available = army.findIndex(s => !s.guard);
-    if (available >= 0) { toggleGuard(available); }
-    else if (army.length > 0) { toggleGuard(0); }
-    else showToast('❌ Belum ada prajurit', '#ff4444');
-  }
-  if (k === 'e') { ensureAudio(); doInteractE(); }
-  if (k === 'escape') {
-    closeAllPanels();
-  }
-  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key)) e.preventDefault();
-});
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-
-canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
-  mouse.tx = Math.floor((mouse.x/PX + camera.x)/TILE);
-  mouse.ty = Math.floor((mouse.y/PX + camera.y)/TILE);
-  mouse.inside = true;
-  if (isMouseDown && !showInventory) {
-    const k = `${mouse.tx},${mouse.ty}`;
-    if (k !== lastDragTile) { applyTool(mouse.tx, mouse.ty); lastDragTile = k; }
-  }
-});
-canvas.addEventListener('mouseleave', () => { mouse.inside = false; isMouseDown = false; lastDragTile = null; });
-canvas.addEventListener('mousedown', e => {
-  if (e.button !== 0 || showInventory) return;
-  ensureAudio();
-  if (fishing.active) { clickFish(); return; }
-  isMouseDown = true;
-  applyTool(mouse.tx, mouse.ty);
-  lastDragTile = `${mouse.tx},${mouse.ty}`;
-});
-canvas.addEventListener('mouseup', () => { isMouseDown = false; lastDragTile = null; });
-
-document.querySelectorAll('.tool').forEach(el => {
-  el.addEventListener('click', () => { ensureAudio(); toggleTool(el.dataset.tool); });
-});
-document.querySelectorAll('.seedOpt').forEach(el => {
-  el.onclick = () => {
-    currentSeed = el.dataset.seed;
-    document.querySelectorAll('.seedOpt').forEach(e => e.classList.toggle('active', e === el));
-    sfxClick();
-  };
-});
-document.querySelectorAll('.shopTab').forEach(tab => {
-  tab.onclick = () => {
-    shopTab = tab.dataset.tab;
-    document.querySelectorAll('.shopTab').forEach(t => t.classList.toggle('active', t === tab));
-    renderShop(); sfxClick();
-  };
-});
-
-const bindClick = (id, fn) => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('click', fn);
-};
-bindClick('saveBtn', () => {
-  if (saveGame()) { sfxSave(); showToast('💾 Tersimpan!', '#5aff5a'); }
-  else showToast('❌ Gagal save', '#ff4444');
-});
-bindClick('achBtn', toggleAch);
-bindClick('shopBtn', toggleShop);
-bindClick('hireBtn', toggleHirePanel);
-bindClick('armyBtn', toggleArmyPanel);
-bindClick('muteIcon', toggleMute);
-bindClick('closeInvBtn', toggleInventory);
-bindClick('closeShopBtn', toggleShop);
-bindClick('closeAchBtn', toggleAch);
-bindClick('closeHireBtn', toggleHirePanel);
-bindClick('closeArmyBtn', toggleArmyPanel);
-
-setInterval(() => { if (audioCtx) saveGame(); }, 30000);
-setTimeout(() => {
-  if (loadGame()) { showToast('💾 Save dimuat!', '#5aff5a'); updateHUD(); }
-}, 100);
-
-// ============================================
-// ==== UPDATE ====
-// ============================================
-let frameCount = 0, hungerCounter = 0, hpRegenCounter = 0;
-let lastPhase = 'dawn', wolfSpawnTimer = 0, howlTimer = 0;
-
-function update() {
-  frameCount++;
-  const dt = 1/60;
-  if (doorCooldown > 0) doorCooldown -= dt;
-  time.totalMinutes += time.minutesPerSecond * dt;
-  if (time.totalMinutes >= 24*60) {
-    time.totalMinutes -= 24*60; time.day++;
-    showToast('🌅 Hari baru!', '#ffed4a');
+function fishingStrike() {
+  if (!fishing.active || fishing.phase !== 'action') return;
+  // Sukses kalau barPos 30-70
+  if (fishing.barPos >= 30 && fishing.barPos <= 70) {
+    fishing.active = false;
+    document.getElementById('fishIndicator').style.display = 'none';
+    inventory.fish = (inventory.fish || 0) + 1;
+    stats.fishCaught++;
+    sfxFishCatch();
+    showToast('🐟 +1 Ikan!', '#5aff5a');
+    updateHUD();
     checkAchievements();
+  } else {
+    fishing.active = false;
+    document.getElementById('fishIndicator').style.display = 'none';
+    sfxFishMiss();
+    showToast('❌ Meleset!', '#ff4444');
   }
-  const phase = getTimeOfDay();
-  if (phase !== lastPhase) {
-    lastPhase = phase;
-    startMusic(currentInterior ? 'interior' : phase);
-    const names = { dawn:'🌅 Pagi', day:'☀️ Siang', evening:'🌇 Sore', night:'🌙 Malam' };
-    const el = document.getElementById('timeOfDay');
-    if (el) el.textContent = names[phase];
-  }
+}
 
-  let dx = 0, dy = 0;
-  if (keys['arrowleft'] || keys['a']) dx -= player.speed;
-  if (keys['arrowright'] || keys['d']) dx += player.speed;
-  if (keys['arrowup'] || keys['w']) dy -= player.speed;
-  if (keys['arrowdown'] || keys['s']) dy += player.speed;
-  const ww = getActiveWorld();
-  if (dx !== 0 || dy !== 0) {
-    if (dx !== 0 && canMoveTo(player.x+dx, player.y, player.w, player.h, ww)) player.x += dx;
-    if (dy !== 0 && canMoveTo(player.x, player.y+dy, player.w, player.h, ww)) player.y += dy;
-    if (Math.abs(dx) > Math.abs(dy)) player.dir = dx > 0 ? 'right' : 'left';
-    else player.dir = dy > 0 ? 'down' : 'up';
-    player.animTimer++;
-    if (player.animTimer > 10) { player.animTimer = 0; player.walkFrame = (player.walkFrame + 1) % 4; }
-  } else { player.walkFrame = 0; player.animTimer = 0; }
-  if (player.attackCooldown > 0) player.attackCooldown -= dt;
+// ============================================
+// ==== WOLF AI ====
+// ============================================
+function updateWolves(dt) {
+  wolves.forEach(w => {
+    if (w.hurtFlash > 0) w.hurtFlash--;
+    w.attackTimer -= dt;
 
-  checkNearbyInteriorTiles();
-  if (!currentInterior) checkNearWater();
-
-  if (doorCooldown <= 0) {
-    if (nearDoor && !currentInterior) {
-      const bodyPoints = [
-        {x: player.x, y: player.y},
-        {x: player.x + player.w - 1, y: player.y},
-        {x: player.x, y: player.y + player.h - 1},
-        {x: player.x + player.w - 1, y: player.y + player.h - 1},
-      ];
-      let foundDoor = null;
-      for (const p of bodyPoints) {
-        const tx = Math.floor(p.x / TILE), ty = Math.floor(p.y / TILE);
-        if (tx>=0 && ty>=0 && tx<WORLD_W && ty<WORLD_H && world[ty][tx] === T_HOUSE_DOOR) {
-          foundDoor = {x: tx, y: ty}; break;
-        }
-      }
-      if (foundDoor) enterHouse(foundDoor.x, foundDoor.y);
-    } else if (nearDoor && currentInterior) {
-      exitInterior();
-    }
-  }
-
-  updateFishing(dt);
-  if (!currentInterior) {
-    updateWorkers(dt);
-    updateArmy(dt);
-  }
-
-  Object.keys(crops).forEach(k => {
-    const c = crops[k];
-    if (c.stage >= 0 && c.stage < 3) {
-      const growTime = c.growTime || 400;
-      c.timer = (c.timer || 0) + (c.watered ? 1.5 : 0.4);
-      if (c.timer > growTime / 4) { c.stage++; c.timer = 0; c.watered = false; }
-    }
-  });
-  Object.keys(trees).forEach(k => {
-    const t = trees[k];
-    if (t.stage >= -1 && t.stage < 3) {
-      t.timer = (t.timer || 0) + 1;
-      if (t.timer > 900) {
-        t.stage++; t.timer = 0;
-        const [tx, ty] = k.split(',').map(Number);
-        if (world[ty] && world[ty][tx] !== undefined) {
-          if (t.stage >= 3) world[ty][tx] = T_TREE;
-          else if (t.stage >= 0) world[ty][tx] = T_SAPLING;
-        }
-      }
-    }
-  });
-
-  if (!currentInterior) {
-    npcs.forEach(npc => {
-      npc.moveTimer -= dt;
-      const ttx = npc.targetX*TILE, tty = npc.targetY*TILE;
-      const ddx = ttx - npc.x, ddy = tty - npc.y;
-      const dist = Math.hypot(ddx, ddy);
-      if (dist < 4 || npc.moveTimer <= 0) {
-        if (npc.moveTimer <= 0 && !npc.pausing) { npc.pausing = true; npc.pauseTimer = 1.5 + Math.random()*2.5; }
-        if (npc.pausing) {
-          npc.pauseTimer -= dt; npc.isMoving = false;
-          if (npc.pauseTimer <= 0) {
-            npc.pausing = false;
-            npc.moveTimer = 3 + Math.random()*4;
-            npc.targetX = 5 + Math.floor(Math.random()*(WORLD_W-10));
-            npc.targetY = 15 + Math.floor(Math.random()*2);
-            npc.targetX = Math.max(5, Math.min(WORLD_W-5, npc.targetX));
-            npc.targetY = Math.max(15, Math.min(17, npc.targetY));
-          }
-        }
-      } else {
-        npc.isMoving = true;
-        const nx = npc.x + ddx/dist*npc.speed, ny = npc.y + ddy/dist*npc.speed;
-        if (canMoveTo(nx, ny, 10, 14, world)) { npc.x = nx; npc.y = ny; }
-        else { npc.moveTimer = 0; npc.pausing = false; }
-        if (Math.abs(ddx) > Math.abs(ddy)) npc.dir = ddx > 0 ? 'right' : 'left';
-        else npc.dir = ddy > 0 ? 'down' : 'up';
-        npc.animTimer++;
-        if (npc.animTimer > 12) { npc.animTimer = 0; npc.walkFrame = (npc.walkFrame + 1) % 4; }
-      }
-      if (!npc.isMoving) { npc.walkFrame = 0; npc.animTimer = 0; }
+    // Target: player atau army terdekat
+    let target = null, targetDist = 99999;
+    const dp = Math.hypot(player.x - w.x, player.y - w.y);
+    if (dp < 200) { target = player; targetDist = dp; }
+    army.forEach(s => {
+      const d = Math.hypot(s.x - w.x, s.y - w.y);
+      if (d < targetDist && d < 200) { target = s; targetDist = d; }
     });
-  }
 
-  if (!currentInterior) {
-    animals.forEach(a => {
-      if (a.dead) return;
-      a.x += a.vx; a.y += a.vy;
-      a.vx *= 0.85; a.vy *= 0.85;
-      if (a.pauseTimer > 0) { a.pauseTimer -= dt; a.walkFrame = 0; return; }
-      a.wanderTimer -= 1;
-      if (a.wanderTimer <= 0) {
-        a.wanderTimer = 120 + Math.random()*240;
-        a.wanderAngle = Math.random()*Math.PI*2;
-        a.pauseTimer = 0.5 + Math.random()*1.5;
-      }
-      if (a.wanderAngle !== undefined && a.pauseTimer <= 0) {
-        const spd = a.speed * (a.hurtFlash > 0 ? 2 : 1);
-        const nx = a.x + Math.cos(a.wanderAngle)*spd;
-        const ny = a.y + Math.sin(a.wanderAngle)*spd;
-        const tx = Math.floor(nx/TILE), ty = Math.floor(ny/TILE);
-        if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
-          const t = world[ty][tx];
-          if (t === T_GRASS || t === T_FLOWER || t === T_PATH) {
-            a.x = nx; a.y = ny;
-            if (Math.abs(Math.cos(a.wanderAngle)) > Math.abs(Math.sin(a.wanderAngle))) a.dir = Math.cos(a.wanderAngle) > 0 ? 'right' : 'left';
-            else a.dir = Math.sin(a.wanderAngle) > 0 ? 'down' : 'up';
-            a.animTimer++;
-            if (a.animTimer > 15) { a.animTimer = 0; a.walkFrame = (a.walkFrame + 1) % 4; }
-          } else a.wanderTimer = 0;
-        }
-      }
-      a.x = Math.max(TILE, Math.min(WORLD_W*TILE-TILE, a.x));
-      a.y = Math.max(TILE, Math.min(WORLD_H*TILE-TILE, a.y));
-      if (a.hurtFlash > 0) a.hurtFlash--;
-    });
-  }
-
-  if (phase === 'night' && !currentInterior && time.day >= 1) {
-    wolfSpawnTimer += dt;
-    if (wolfSpawnTimer > 12 && wolves.length < 5) { wolfSpawnTimer = 0; spawnWolf(); }
-    howlTimer += dt;
-    if (howlTimer > 20 && wolves.length > 0) { howlTimer = 0; sfxWolfHowl(); }
-  } else { wolfSpawnTimer = 0; howlTimer = 0; }
-
-  if (!currentInterior) {
-    wolves.forEach(w => {
-      let target = player;
-      let nearestDist = Math.hypot(player.x - w.x, player.y - w.y);
-      army.forEach(s => {
-        const d = Math.hypot(s.x - w.x, s.y - w.y);
-        if (d < nearestDist) { target = s; nearestDist = d; }
-      });
-
-      const dxp = target.x - w.x, dyp = target.y - w.y;
-      const distP = nearestDist;
-      if (distP < 200 && distP > 0.1) {
-        const spd = w.speed;
-        const nx = w.x + dxp/distP*spd, ny = w.y + dyp/distP*spd;
-        if (canMoveTo(nx, ny, w.w, w.h, world)) { w.x = nx; w.y = ny; }
-        if (Math.abs(dxp) > Math.abs(dyp)) w.dir = dxp > 0 ? 'right' : 'left';
-        else w.dir = dyp > 0 ? 'down' : 'up';
-        if (distP < 20) {
-          w.attackTimer -= dt;
-          if (w.attackTimer <= 0) {
-            w.attackTimer = 1.5;
-            if (target === player) {
-              player.hp = Math.max(0, player.hp - 6);
-              flashDamage(); sfxWolfBite();
-              showToast('🐺 Wolf attack! -6 HP', '#ff6666');
-            } else {
-              const rawDmg = 8;
-              const actualDmg = Math.max(1, rawDmg - (target.armor || 0));
-              target.hp -= actualDmg;
-              target.hurtFlash = 10;
-              sfxArmor();
-              if (target.hp <= 0) {
-                const idx = army.indexOf(target);
-                if (idx >= 0) {
-                  army.splice(idx, 1);
-                  showToast(`💀 ${target.name} gugur!`, '#ff4444');
-                  if (document.getElementById('armyPanel').style.display === 'block') renderArmyPanel();
-                }
-              }
+    if (target) {
+      if (targetDist < 20) {
+        // Attack
+        if (w.attackTimer <= 0) {
+          w.attackTimer = 1.0;
+          sfxWolfBite();
+          if (target === player) {
+            const dmg = Math.max(1, 8 - Math.floor((army.filter(s=>s.guard).length) * 2));
+            player.hp -= dmg;
+            flashDamage();
+            sfxHurt();
+            if (player.hp <= 0) {
+              player.hp = player.hpMax;
+              player.hunger = Math.max(10, player.hunger - 20);
+              player.x = 20*TILE; player.y = 20*TILE;
+              showToast('💀 Kamu tumbang! Respawn...', '#ff4444');
+            }
+            updateHUD();
+          } else {
+            // Army
+            const dmg = Math.max(1, 10 - (target.armor || 0));
+            target.hp -= dmg;
+            target.hurtFlash = 10;
+            if (target.hp <= 0) {
+              showToast(`💀 ${target.name} gugur!`, '#ff4444');
+              army = army.filter(s => s !== target);
+              updateHUD();
             }
           }
         }
       } else {
-        w.wanderTimer = (w.wanderTimer || 0) - 1;
-        if (w.wanderTimer <= 0) { w.wanderTimer = 120; w.wanderAngle = Math.random()*Math.PI*2; }
-        const spd = w.speed * 0.5;
-        const nx = w.x + Math.cos(w.wanderAngle)*spd;
-        const ny = w.y + Math.sin(w.wanderAngle)*spd;
-        const tx = Math.floor(nx/TILE), ty = Math.floor(ny/TILE);
-        if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
-          const t = world[ty][tx];
-          if (t === T_GRASS || t === T_PATH || t === T_FLOWER) { w.x = nx; w.y = ny; }
-          else w.wanderTimer = 0;
+        // Chase
+        const dx = (target.x - w.x) / targetDist * w.speed;
+        const dy = (target.y - w.y) / targetDist * w.speed;
+        if (canMoveTo(w.x + dx, w.y, 12, 12, world)) w.x += dx;
+        if (canMoveTo(w.x, w.y + dy, 12, 12, world)) w.y += dy;
+        if (Math.abs(dx) > Math.abs(dy)) w.dir = dx > 0 ? 'right' : 'left';
+        else w.dir = dy > 0 ? 'down' : 'up';
+        w.animTimer++;
+        if (w.animTimer > 10) { w.animTimer = 0; w.walkFrame = (w.walkFrame + 1) % 4; }
+      }
+    } else {
+      // Wander
+      w.wanderTimer -= dt;
+      if (w.wanderTimer <= 0) {
+        w.wanderTimer = 2 + Math.random() * 3;
+        w.wanderAngle = Math.random() * Math.PI * 2;
+      }
+      const dx = Math.cos(w.wanderAngle) * w.speed * 0.5;
+      const dy = Math.sin(w.wanderAngle) * w.speed * 0.5;
+      if (canMoveTo(w.x + dx, w.y, 12, 12, world)) w.x += dx;
+      if (canMoveTo(w.x, w.y + dy, 12, 12, world)) w.y += dy;
+      w.animTimer++;
+      if (w.animTimer > 12) { w.animTimer = 0; w.walkFrame = (w.walkFrame + 1) % 4; }
+    }
+  });
+}
+
+// ============================================
+// ==== ANIMALS ====
+// ============================================
+function updateAnimals(dt) {
+  animals.forEach(a => {
+    if (a.dead) return;
+    if (a.hurtFlash > 0) a.hurtFlash--;
+
+    a.wanderTimer -= dt;
+    if (a.wanderTimer <= 0) {
+      a.wanderTimer = 1.5 + Math.random() * 3;
+      if (Math.random() < 0.4) {
+        a.vx = 0; a.vy = 0;
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        a.vx = Math.cos(angle) * a.speed;
+        a.vy = Math.sin(angle) * a.speed;
+      }
+    }
+
+    // Flee dari player
+    const dp = Math.hypot(player.x - a.x, player.y - a.y);
+    if (dp < 60) {
+      const dx = (a.x - player.x) / dp * a.speed * 2;
+      const dy = (a.y - player.y) / dp * a.speed * 2;
+      a.vx = dx; a.vy = dy;
+    }
+
+    if (canMoveTo(a.x + a.vx, a.y, 10, 10, world)) a.x += a.vx;
+    else a.vx = 0;
+    if (canMoveTo(a.x, a.y + a.vy, 10, 10, world)) a.y += a.vy;
+    else a.vy = 0;
+
+    if (Math.abs(a.vx) > Math.abs(a.vy)) a.dir = a.vx > 0 ? 'right' : 'left';
+    else if (a.vy !== 0) a.dir = a.vy > 0 ? 'down' : 'up';
+
+    a.animTimer++;
+    if (a.animTimer > 12) { a.animTimer = 0; a.walkFrame = (a.walkFrame + 1) % 4; }
+  });
+
+  // Cleanup dead
+  if (animals.length < 6 && Math.random() < 0.001) {
+    spawnSingleAnimal(['rabbit','chicken','cow'][Math.floor(Math.random()*3)]);
+  }
+}
+
+// ============================================
+// ==== PROJECTILES ====
+// ============================================
+function updateProjectiles(dt) {
+  projectiles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.life--;
+    // Hit wolves
+    wolves.forEach(w => {
+      if (Math.abs(w.x - p.x) < 12 && Math.abs(w.y - p.y) < 12) {
+        w.hp -= p.dmg;
+        w.hurtFlash = 10;
+        p.life = 0;
+        sfxArrowHit();
+        if (w.hp <= 0) {
+          wolves = wolves.filter(wl => wl !== w);
+          inventory.pelt = (inventory.pelt || 0) + 1;
+          stats.wolvesKilled++;
+          showToast('🏹 Wolf dibunuh! +1 pelt', '#ff6666');
+          updateHUD();
+          checkAchievements();
         }
       }
-      w.animTimer = (w.animTimer || 0) + 1;
-      if (w.animTimer > 8) { w.animTimer = 0; w.walkFrame = (w.walkFrame + 1) % 4; }
-      if (w.hurtFlash > 0) w.hurtFlash--;
     });
-
-    arrows.forEach(arr => {
-      arr.x += arr.vx; arr.y += arr.vy; arr.life--;
-      for (const a of animals) {
-        if (a.dead) continue;
-        if (Math.hypot(arr.x - (a.x+5), arr.y - (a.y+3)) < 10) {
-          a.hp -= 15; a.hurtFlash = 10; sfxArrowHit();
+    // Hit animals (player arrows only)
+    if (p.fromPlayer) {
+      animals.forEach(a => {
+        if (a.dead) return;
+        if (Math.abs(a.x - p.x) < 12 && Math.abs(a.y - p.y) < 12) {
+          a.hp -= p.dmg;
+          a.hurtFlash = 10;
+          p.life = 0;
           if (a.hp <= 0) {
             a.dead = true;
-            const amt = ANIMAL_TYPES[a.type].dropAmt;
-            inventory.food += amt;
+            const t = ANIMAL_TYPES[a.type];
+            inventory.food = (inventory.food || 0) + t.dropAmt;
             stats.animalsKilled++;
-            sfxHarvest(); showToast(`🏹 +${amt} food`, '#ffaa00');
-            updateHUD(); checkAchievements();
-            setTimeout(() => spawnSingleAnimal(a.type), 30000);
+            showToast(`🏹 +${t.dropAmt} makanan`, '#5aff5a');
+            updateHUD();
+            checkAchievements();
           }
-          arr.life = 0; break;
+        }
+      });
+    }
+  });
+  projectiles = projectiles.filter(p => p.life > 0);
+}
+
+// ============================================
+// ==== NPC ====
+// ============================================
+function updateNPCs(dt) {
+  npcs.forEach(n => {
+    n.moveTimer -= dt;
+    if (n.moveTimer <= 0) {
+      n.moveTimer = 3 + Math.random() * 5;
+      n.targetX = n.x / TILE + (Math.random() - 0.5) * 6;
+      n.targetY = n.y / TILE + (Math.random() - 0.5) * 6;
+      n.targetX = Math.max(2, Math.min(WORLD_W - 2, n.targetX));
+      n.targetY = Math.max(2, Math.min(WORLD_H - 2, n.targetY));
+    }
+    const dx = n.targetX * TILE - n.x;
+    const dy = n.targetY * TILE - n.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 4) {
+      const nx = dx / d * n.speed;
+      const ny = dy / d * n.speed;
+      if (canMoveTo(n.x + nx, n.y, 10, 14, world)) n.x += nx;
+      if (canMoveTo(n.x, n.y + ny, 10, 14, world)) n.y += ny;
+      if (Math.abs(nx) > Math.abs(ny)) n.dir = nx > 0 ? 'right' : 'left';
+      else n.dir = ny > 0 ? 'down' : 'up';
+      n.animTimer++;
+      if (n.animTimer > 12) { n.animTimer = 0; n.walkFrame = (n.walkFrame + 1) % 4; }
+    }
+  });
+}
+
+// ============================================
+// ==== PLAYER ====
+// ============================================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  const k = e.key.toLowerCase();
+  if (k >= '1' && k <= '9') {
+    const tools = ['hoe','seed','water','harvest','axe','sword','bow','rod','shovel'];
+    setTool(tools[parseInt(k)-1]);
+  }
+  if (k === 'h') { ensureAudio(); toggleHirePanel(); }
+  if (k === 'r') { ensureAudio(); toggleArmyPanel(); }
+  if (k === 'i') { ensureAudio(); toggleInventory(); }
+  if (k === 'b') { ensureAudio(); toggleShop(); }
+  if (k === 'g') {
+    // Toggle guard semua
+    const anyGuard = army.some(s => s.guard);
+    army.forEach((s, i) => { if (i < MAX_GUARDS) toggleGuard(i); });
+  }
+  if (k === 'e') {
+    ensureAudio();
+    if (nearBed) sleep();
+  }
+  if (k === 'escape') {
+    closeAllPanels();
+    cancelPlacement();
+    setTool(null);
+  }
+  if (k === ' ') {
+    e.preventDefault();
+    fishingStrike();
+  }
+  if (['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) {
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool').forEach(t => {
+    t.classList.toggle('active', t.dataset.tool === tool);
+  });
+  const seedWrap = document.getElementById('seedPickerWrap');
+  if (seedWrap) seedWrap.style.display = tool === 'seed' ? 'block' : 'none';
+}
+
+function updatePlayer(dt) {
+  if (placementMode) {
+    // Update preview
+    return;
+  }
+
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup']) dy = -1;
+  if (keys['s'] || keys['arrowdown']) dy = 1;
+  if (keys['a'] || keys['arrowleft']) dx = -1;
+  if (keys['d'] || keys['arrowright']) dx = 1;
+
+  if (dx && dy) { dx *= 0.707; dy *= 0.707; }
+
+  const speed = player.speed * 1.4;
+  if (dx !== 0 || dy !== 0) {
+    const nx = dx * speed;
+    const ny = dy * speed;
+    if (canMoveTo(player.x + nx, player.y, player.w, player.h, getActiveWorld())) player.x += nx;
+    if (canMoveTo(player.x, player.y + ny, player.w, player.h, getActiveWorld())) player.y += ny;
+    if (Math.abs(dx) > Math.abs(dy)) player.dir = dx > 0 ? 'right' : 'left';
+    else if (dy !== 0) player.dir = dy > 0 ? 'down' : 'up';
+    player.animTimer++;
+    if (player.animTimer > 8) { player.animTimer = 0; player.walkFrame = (player.walkFrame + 1) % 4; }
+  } else {
+    player.walkFrame = 0;
+  }
+
+  // Clamp
+  player.x = Math.max(0, Math.min(WORLD_W*TILE - player.w, player.x));
+  player.y = Math.max(0, Math.min(WORLD_H*TILE - player.h, player.y));
+
+  // Check interactions
+  const ptx = Math.floor((player.x + player.w/2) / TILE);
+  const pty = Math.floor((player.y + player.h/2) / TILE);
+  nearBed = false; nearDoor = false; nearShop = false; nearWater = false;
+
+  const aw = getActiveWorld();
+  if (aw[pty] && aw[pty][ptx] === T_BED) nearBed = true;
+  if (aw[pty] && aw[pty][ptx] === T_HOUSE_DOOR) nearDoor = true;
+  if (world[pty] && world[pty][ptx] === T_SHOP) nearShop = true;
+  
+  for (let dy2=-1; dy2<=1; dy2++) {
+    for (let dx2=-1; dx2<=1; dx2++) {
+      if (aw[pty+dy2] && aw[pty+dy2][ptx+dx2] === T_WATER) nearWater = true;
+    }
+  }
+
+  // Bed prompt
+  const bp = document.getElementById('bedPrompt');
+  if (bp) bp.style.display = (nearBed && !currentInterior) ? 'block' : (currentInterior ? 'none' : 'none');
+  if (currentInterior) {
+    if (nearBed) bp.style.display = 'block';
+  }
+}
+
+function sleep() {
+  sfxSleep();
+  const h = (time.totalMinutes/60) % 24;
+  if (h >= 20 || h < 6) {
+    time.day++;
+    time.totalMinutes = 6 * 60;
+    player.hp = player.hpMax;
+    player.hunger = Math.min(player.hungerMax, player.hunger + 40);
+    stats.sleepCount++;
+    showToast(`🌅 Hari ${time.day}! HP & hunger pulih.`, '#5aff5a');
+    checkAchievements();
+  } else {
+    showToast('😴 Belum waktunya tidur (malam hari)', '#ffaa55');
+  }
+  updateHUD();
+}
+
+// Mouse handling
+let mouseX = 0, mouseY = 0;
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  mouseX = (e.clientX - rect.left) * scaleX;
+  mouseY = (e.clientY - rect.top) * scaleY;
+
+  if (placementMode) {
+    const wx = mouseX + camera.x;
+    const wy = mouseY + camera.y;
+    placementPreviewX = Math.floor(wx / TILE) - 1;
+    placementPreviewY = Math.floor(wy / TILE) - 1;
+  }
+});
+
+canvas.addEventListener('click', e => {
+  ensureAudio();
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  const wx = mx + camera.x;
+  const wy = my + camera.y;
+
+  if (placementMode) {
+    const fx = Math.floor(wx / TILE) - 1;
+    const fy = Math.floor(wy / TILE) - 1;
+    if (tryPlaceFarmArea(fx, fy)) {
+      cancelPlacement();
+    }
+    return;
+  }
+
+  // Interact with NPC
+  for (const n of npcs) {
+    if (Math.abs(n.x - wx) < 20 && Math.abs(n.y - wy) < 20) {
+      showDialog(`${n.name}: ${n.dialog}`);
+      return;
+    }
+  }
+
+  if (currentTool) {
+    useTool(wx, wy);
+  }
+});
+
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (placementMode) cancelPlacement();
+});
+
+// ============================================
+// ==== RENDERING ====
+// ============================================
+function drawTile(t, sx, sy) {
+  if (t === T_GRASS) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#4a8d4a';
+    ctx.fillRect(sx+2, sy+2, 4, 4);
+    ctx.fillRect(sx+9, sy+7, 3, 3);
+  } else if (t === T_PATH) {
+    ctx.fillStyle = '#8a7a5a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#9a8a6a';
+    ctx.fillRect(sx+1, sy+1, 14, 14);
+  } else if (t === T_WATER) {
+    ctx.fillStyle = '#2a5a9a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#3a6aaa';
+    const wave = Math.sin(Date.now()/500 + sx/20) * 2;
+    ctx.fillRect(sx+3, sy+5+wave, 10, 2);
+    ctx.fillRect(sx+5, sy+10+wave, 6, 2);
+  } else if (t === T_TREE) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx+6, sy+8, 4, 8);
+    ctx.fillStyle = '#2a6d2a';
+    ctx.fillRect(sx+2, sy+2, 12, 10);
+    ctx.fillStyle = '#3a8d3a';
+    ctx.fillRect(sx+4, sy+3, 8, 6);
+  } else if (t === T_FARMLAND) {
+    ctx.fillStyle = '#6a4a2a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#7a5a3a';
+    ctx.fillRect(sx+2, sy+3, 12, 2);
+    ctx.fillRect(sx+2, sy+8, 12, 2);
+    ctx.fillRect(sx+2, sy+13, 12, 2);
+  } else if (t === T_CROP) {
+    ctx.fillStyle = '#6a4a2a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#7a5a3a';
+    ctx.fillRect(sx+2, sy+13, 12, 2);
+  } else if (t === T_HOUSE) {
+    ctx.fillStyle = '#8a6a4a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#aa8a6a';
+    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx, sy, 16, 4);
+  } else if (t === T_HOUSE_DOOR) {
+    ctx.fillStyle = '#8a6a4a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx+2, sy+4, 12, 12);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(sx+11, sy+10, 2, 2);
+  } else if (t === T_FLOWER) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    const colors = ['#ff6b6b', '#ffed4a', '#4a90e2', '#ff69b4'];
+    ctx.fillStyle = colors[(sx+sy) % colors.length];
+    ctx.fillRect(sx+5, sy+5, 6, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx+7, sy+7, 2, 2);
+  } else if (t === T_LAMP) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx+7, sy+6, 3, 10);
+    ctx.fillStyle = '#ffed4a';
+    ctx.fillRect(sx+5, sy+2, 7, 7);
+    ctx.fillStyle = '#fff8a0';
+    ctx.fillRect(sx+6, sy+3, 5, 5);
+  } else if (t === T_STUMP) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx+4, sy+8, 8, 6);
+    ctx.fillStyle = '#7a5a3a';
+    ctx.fillRect(sx+5, sy+9, 6, 4);
+  } else if (t === T_SAPLING) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx+7, sy+8, 2, 5);
+    ctx.fillStyle = '#2a6d2a';
+    ctx.fillRect(sx+5, sy+4, 6, 5);
+  } else if (t === T_BED) {
+    ctx.fillStyle = '#4a4a6a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#6a6a9a';
+    ctx.fillRect(sx+2, sy+2, 12, 12);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx+3, sy+3, 10, 5);
+  } else if (t === T_INTERIOR_FLOOR) {
+    ctx.fillStyle = '#6a5a4a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#7a6a5a';
+    ctx.fillRect(sx+1, sy+1, 14, 14);
+  } else if (t === T_WALL) {
+    ctx.fillStyle = '#4a3a2a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(sx+1, sy+1, 14, 14);
+  } else if (t === T_TABLE) {
+    ctx.fillStyle = '#6a5a4a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#8a6a4a';
+    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx+2, sy+2, 12, 3);
+  } else if (t === T_SHOP) {
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#8a6a4a';
+    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(sx+3, sy+3, 10, 5);
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.fillText('$', sx+6, sy+8);
+  } else if (t === T_CAMP) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#8a5a3a';
+    ctx.fillRect(sx+3, sy+5, 10, 8);
+    ctx.fillStyle = '#aa7a5a';
+    ctx.fillRect(sx+5, sy+3, 6, 6);
+  } else if (t === T_FENCE) {
+    ctx.fillStyle = '#3a7d3a';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#8a5a2a';
+    ctx.fillRect(sx+2, sy+2, 12, 12);
+    ctx.fillStyle = '#aa7a4a';
+    ctx.fillRect(sx+4, sy+4, 8, 8);
+    ctx.fillStyle = '#6a4a1a';
+    ctx.fillRect(sx+6, sy+6, 4, 4);
+  }
+}
+
+function drawCrop(key, c, sx, sy) {
+  if (c.stage < 0) return;
+  const cropInfo = CROP_TYPES[c.type] || CROP_TYPES.wheat;
+  if (c.stage === 0) {
+    ctx.fillStyle = '#5aff5a';
+    ctx.fillRect(sx+7, sy+10, 2, 3);
+  } else if (c.stage === 1) {
+    ctx.fillStyle = '#5aff5a';
+    ctx.fillRect(sx+6, sy+7, 4, 6);
+    ctx.fillStyle = '#7aff7a';
+    ctx.fillRect(sx+7, sy+5, 2, 3);
+  } else if (c.stage === 2) {
+    ctx.fillStyle = '#5aff5a';
+    ctx.fillRect(sx+5, sy+4, 6, 9);
+    ctx.fillStyle = '#7aff7a';
+    ctx.fillRect(sx+6, sy+2, 4, 4);
+  } else if (c.stage >= 3) {
+    ctx.fillStyle = cropInfo.color;
+    ctx.fillRect(sx+4, sy+2, 8, 12);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx+5, sy+3, 2, 2);
+    ctx.fillRect(sx+9, sy+5, 2, 2);
+    // Ready glow
+    ctx.fillStyle = 'rgba(255,255,100,0.3)';
+    ctx.fillRect(sx+2, sy, 12, 16);
+  }
+}
+
+function drawPlayer(x, y) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x-2, y+12, 14, 4);
+  
+  // Body
+  ctx.fillStyle = '#4a90e2';
+  ctx.fillRect(x, y+6, 10, 8);
+  ctx.fillStyle = '#3a70b2';
+  ctx.fillRect(x, y+10, 10, 4);
+  
+  // Head
+  ctx.fillStyle = '#f0c8a0';
+  ctx.fillRect(x+1, y, 8, 7);
+  ctx.fillStyle = '#3a2a1a';
+  ctx.fillRect(x, y-1, 10, 4);
+  
+  // Eyes
+  const eyeX = player.dir === 'left' ? 1 : player.dir === 'right' ? 7 : 3;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x+eyeX, y+3, 2, 2);
+  if (player.dir !== 'left' && player.dir !== 'right') {
+    ctx.fillRect(x+eyeX+3, y+3, 2, 2);
+  }
+  
+  // Legs
+  const legOff = player.walkFrame === 1 ? -1 : player.walkFrame === 3 ? 1 : 0;
+  ctx.fillStyle = '#2a2a3e';
+  ctx.fillRect(x+1+legOff, y+14, 3, 3);
+  ctx.fillRect(x+6-legOff, y+14, 3, 3);
+}
+
+function drawWorker(w) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(w.x-2, w.y+12, 14, 4);
+  
+  ctx.fillStyle = w.shirt;
+  ctx.fillRect(w.x, w.y+6, 10, 8);
+  ctx.fillStyle = w.color;
+  ctx.fillRect(w.x, w.y+10, 10, 4);
+  
+  ctx.fillStyle = '#f0c8a0';
+  ctx.fillRect(w.x+1, w.y, 8, 7);
+  ctx.fillStyle = '#8a6a2a';
+  ctx.fillRect(w.x, w.y-1, 10, 4);
+  
+  ctx.fillStyle = '#000';
+  ctx.fillRect(w.x+3, w.y+3, 2, 2);
+  ctx.fillRect(w.x+6, w.y+3, 2, 2);
+  
+  const legOff = w.walkFrame === 1 ? -1 : w.walkFrame === 3 ? 1 : 0;
+  ctx.fillStyle = '#2a2a3e';
+  ctx.fillRect(w.x+1+legOff, w.y+14, 3, 3);
+  ctx.fillRect(w.x+6-legOff, w.y+14, 3, 3);
+}
+
+function drawSoldier(s) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(s.x-2, s.y+12, 14, 4);
+  
+  if (s.hurtFlash > 0) {
+    ctx.fillStyle = '#ff8888';
+    ctx.fillRect(s.x, s.y, 10, 16);
+    return;
+  }
+  
+  // Armor
+  ctx.fillStyle = s.armorColor || '#888';
+  ctx.fillRect(s.x, s.y+6, 10, 8);
+  ctx.fillStyle = s.shirt;
+  ctx.fillRect(s.x+1, s.y+7, 8, 6);
+  
+  // Head
+  ctx.fillStyle = '#f0c8a0';
+  ctx.fillRect(s.x+1, s.y, 8, 7);
+  ctx.fillStyle = s.color;
+  ctx.fillRect(s.x, s.y-1, 10, 4);
+  
+  // Weapon
+  if (s.type === 'archer') {
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(s.x+9, s.y+4, 2, 8);
+  } else if (s.type === 'knight') {
+    ctx.fillStyle = '#c0c0c0';
+    ctx.fillRect(s.x-2, s.y+5, 2, 10);
+    ctx.fillRect(s.x+10, s.y+5, 2, 10);
+  } else {
+    ctx.fillStyle = '#ccc';
+    ctx.fillRect(s.x+9, s.y+2, 2, 10);
+    ctx.fillStyle = '#8a5a2a';
+    ctx.fillRect(s.x+9, s.y+11, 4, 2);
+  }
+  
+  // Guard indicator
+  if (s.guard) {
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(s.x+3, s.y-6, 4, 4);
+  }
+}
+
+function drawAnimal(a) {
+  if (a.dead) return;
+  const info = ANIMAL_TYPES[a.type];
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(a.x-1, a.y+8, 12, 3);
+  
+  let color = info.color;
+  if (a.hurtFlash > 0) color = '#ff8888';
+  ctx.fillStyle = color;
+  ctx.fillRect(a.x, a.y+3, 10, 7);
+  ctx.fillRect(a.x+2, a.y, 6, 5);
+  
+  ctx.fillStyle = '#000';
+  ctx.fillRect(a.x+3, a.y+1, 1, 1);
+  ctx.fillRect(a.x+6, a.y+1, 1, 1);
+  
+  const legOff = a.walkFrame === 1 ? -1 : a.walkFrame === 3 ? 1 : 0;
+  ctx.fillStyle = color;
+  ctx.fillRect(a.x+1+legOff, a.y+9, 2, 3);
+  ctx.fillRect(a.x+7-legOff, a.y+9, 2, 3);
+}
+
+function drawWolf(w) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(w.x-2, w.y+8, 16, 4);
+  
+  let color = '#6a6a7a';
+  if (w.hurtFlash > 0) color = '#ff8888';
+  ctx.fillStyle = color;
+  ctx.fillRect(w.x, w.y+3, 12, 8);
+  ctx.fillRect(w.x+3, w.y, 7, 5);
+  
+  // Ears
+  ctx.fillRect(w.x+3, w.y-2, 2, 3);
+  ctx.fillRect(w.x+8, w.y-2, 2, 3);
+  
+  // Eyes
+  ctx.fillStyle = '#ff4444';
+  ctx.fillRect(w.x+4, w.y+2, 2, 2);
+  ctx.fillRect(w.x+7, w.y+2, 2, 2);
+  
+  const legOff = w.walkFrame === 1 ? -1 : w.walkFrame === 3 ? 1 : 0;
+  ctx.fillStyle = color;
+  ctx.fillRect(w.x+1+legOff, w.y+10, 3, 3);
+  ctx.fillRect(w.x+8-legOff, w.y+10, 3, 3);
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  const aw = getActiveWorld();
+  const startX = Math.floor(camera.x / TILE);
+  const startY = Math.floor(camera.y / TILE);
+  const endX = Math.min(startX + Math.ceil(canvas.width / TILE) + 1, aw[0].length);
+  const endY = Math.min(startY + Math.ceil(canvas.height / TILE) + 1, aw.length);
+
+  // Draw tiles
+  for (let ty = startY; ty < endY; ty++) {
+    for (let tx = startX; tx < endX; tx++) {
+      if (!aw[ty] || aw[ty][tx] === undefined) continue;
+      const sx = tx * TILE - camera.x;
+      const sy = ty * TILE - camera.y;
+      drawTile(aw[ty][tx], sx, sy);
+      
+      // Draw crops
+      const key = `${tx},${ty}`;
+      if (crops[key] && aw[ty][tx] === T_CROP) {
+        drawCrop(key, crops[key], sx, sy);
+      }
+    }
+  }
+
+  // Draw placement preview
+  if (placementMode) {
+    const fx = placementPreviewX, fy = placementPreviewY;
+    let valid = true;
+    for (let dy = 0; dy < FARM_AREA_H; dy++) {
+      for (let dx = 0; dx < FARM_AREA_W; dx++) {
+        const tx = fx + dx, ty = fy + dy;
+        if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) { valid = false; break; }
+        const t = world[ty][tx];
+        if (t !== T_GRASS && t !== T_FLOWER) { valid = false; break; }
+      }
+      if (!valid) break;
+    }
+    if (valid && isFarmAreaOverlap(fx, fy)) valid = false;
+    
+    ctx.fillStyle = valid ? 'rgba(90,255,90,0.3)' : 'rgba(255,80,80,0.3)';
+    ctx.strokeStyle = valid ? '#5aff5a' : '#ff4444';
+    ctx.lineWidth = 2;
+    for (let dy = 0; dy < FARM_AREA_H; dy++) {
+      for (let dx = 0; dx < FARM_AREA_W; dx++) {
+        const sx = (fx + dx) * TILE - camera.x;
+        const sy = (fy + dy) * TILE - camera.y;
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.strokeRect(sx, sy, TILE, TILE);
+      }
+    }
+  }
+
+  // Draw NPCs
+  npcs.forEach(n => {
+    const sx = n.x - camera.x, sy = n.y - camera.y;
+    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(sx-2, sy+12, 14, 4);
+    ctx.fillStyle = n.color;
+    ctx.fillRect(sx, sy+6, 10, 8);
+    ctx.fillStyle = '#f0c8a0';
+    ctx.fillRect(sx+1, sy, 8, 7);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(sx+3, sy+3, 2, 2);
+    ctx.fillRect(sx+6, sy+3, 2, 2);
+    // Name
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.name, sx+5, sy-4);
+    ctx.textAlign = 'left';
+  });
+
+  // Draw animals
+  animals.forEach(a => {
+    const sx = a.x - camera.x, sy = a.y - camera.y;
+    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    drawAnimal({ ...a, x: sx, y: sy });
+  });
+
+  // Draw workers
+  workers.forEach(w => {
+    const sx = w.x - camera.x, sy = w.y - camera.y;
+    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    drawWorker({ ...w, x: sx, y: sy });
+  });
+
+  // Draw army
+  army.forEach(s => {
+    const sx = s.x - camera.x, sy = s.y - camera.y;
+    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    drawSoldier({ ...s, x: sx, y: sy });
+  });
+
+  // Draw wolves
+  wolves.forEach(w => {
+    const sx = w.x - camera.x, sy = w.y - camera.y;
+    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    drawWolf({ ...w, x: sx, y: sy });
+  });
+
+  // Draw projectiles
+  projectiles.forEach(p => {
+    const sx = p.x - camera.x, sy = p.y - camera.y;
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(sx-1, sy-1, 3, 3);
+  });
+
+  // Draw player
+  const psx = player.x - camera.x;
+  const psy = player.y - camera.y;
+  drawPlayer(psx, psy);
+
+  // Draw darkness overlay
+  const darkness = getDarkness();
+  if (darkness > 0) {
+    ctx.fillStyle = `rgba(10,10,40,${darkness})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Lamp glow
+    for (let ty = startY; ty < endY; ty++) {
+      for (let tx = startX; tx < endX; tx++) {
+        if (aw[ty] && aw[ty][tx] === T_LAMP) {
+          const lx = tx * TILE - camera.x + 8;
+          const ly = ty * TILE - camera.y + 8;
+          const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, 60);
+          grad.addColorStop(0, 'rgba(255,237,74,0.3)');
+          grad.addColorStop(1, 'rgba(255,237,74,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(lx-60, ly-60, 120, 120);
         }
       }
-      for (const w of wolves) {
-        if (Math.hypot(arr.x - (w.x+6), arr.y - (w.y+6)) < 10) {
-          w.hp -= 15; w.hurtFlash = 10; sfxArrowHit();
-          if (w.hp <= 0) {
-            wolves = wolves.filter(wl => wl !== w);
-            inventory.pelt += 1;
-            stats.wolvesKilled++;
-            sfxHarvest(); showToast('🏹 Wolf killed! +1 pelt', '#ff6666');
-            updateHUD(); checkAchievements();
-          }
-          arr.life = 0; break;
-        }
-      }
-    });
-    arrows = arrows.filter(a => a.life > 0 && a.x > 0 && a.x < WORLD_W*TILE && a.y > 0 && a.y < WORLD_H*TILE);
-
-    projectiles.forEach(p => {
-      p.x += p.vx; p.y += p.vy; p.life--;
-      for (const w of wolves) {
-        if (Math.hypot(p.x - (w.x+6), p.y - (w.y+6)) < 10) {
-          w.hp -= p.dmg; w.hurtFlash = 10; sfxArrowHit();
-          if (w.hp <= 0) {
-            wolves = wolves.filter(wl => wl !== w);
-            inventory.pelt += 1;
-            stats.wolvesKilled++;
-            showToast('🏹 Archer bunuh wolf! +1 pelt', '#ff6666');
-            updateHUD(); checkAchievements();
-          }
-          p.life = 0; break;
-        }
-      }
-    });
-    projectiles = projectiles.filter(p => p.life > 0 && p.x > 0 && p.x < WORLD_W*TILE && p.y > 0 && p.y < WORLD_H*TILE);
+    }
+    
+    // Player glow
+    const pgrad = ctx.createRadialGradient(psx+5, psy+5, 0, psx+5, psy+5, 50);
+    pgrad.addColorStop(0, 'rgba(255,255,200,0.15)');
+    pgrad.addColorStop(1, 'rgba(255,255,200,0)');
+    ctx.fillStyle = pgrad;
+    ctx.fillRect(psx-50, psy-50, 110, 110);
   }
 
-  hungerCounter += dt;
-  if (hungerCounter > 6) { hungerCounter = 0; player.hunger = Math.max(0, player.hunger - 1); }
-  if (player.hunger > 60) {
-    hpRegenCounter += dt;
-    if (hpRegenCounter > 5) { hpRegenCounter = 0; player.hp = Math.min(player.hpMax, player.hp + 1); }
+  // Sky tint
+  const tod = getTimeOfDay();
+  const tint = skyColors[tod];
+  if (tint && tint !== 'rgba(255,255,255,0.0)') {
+    ctx.fillStyle = tint;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  if (player.hunger <= 0 && frameCount % 90 === 0) {
-    player.hp = Math.max(0, player.hp - 2); flashDamage(); sfxHurt();
+}
+
+// ============================================
+// ==== HUD UPDATE ====
+// ============================================
+function updateHUD() {
+  const hpFill = document.getElementById('hpFill');
+  const hungerFill = document.getElementById('hungerFill');
+  const hpText = document.getElementById('hpText');
+  const hungerText = document.getElementById('hungerText');
+  const goldEl = document.getElementById('gold');
+  const timeOfDay = document.getElementById('timeOfDay');
+  const dayNum = document.getElementById('dayNum');
+  const clock = document.getElementById('clock');
+  const workerCount = document.getElementById('workerCount');
+  const armyCount = document.getElementById('armyCount');
+  const guardCount = document.getElementById('guardCount');
+  const woodEl = document.getElementById('wood');
+  const foodEl = document.getElementById('food');
+  const wheatEl = document.getElementById('wheat');
+  const arrowsEl = document.getElementById('arrows');
+
+  if (hpFill) hpFill.style.width = Math.max(0, player.hp / player.hpMax * 100) + '%';
+  if (hungerFill) hungerFill.style.width = Math.max(0, player.hunger / player.hungerMax * 100) + '%';
+  if (hpText) hpText.textContent = `${Math.max(0, Math.round(player.hp))}/${player.hpMax}`;
+  if (hungerText) hungerText.textContent = `${Math.max(0, Math.round(player.hunger))}/${player.hungerMax}`;
+  if (goldEl) goldEl.textContent = gameGold;
+  
+  const tod = getTimeOfDay();
+  const todEmoji = { dawn:'🌅', day:'☀️', evening:'🌇', night:'🌙' };
+  if (timeOfDay) timeOfDay.textContent = `${todEmoji[tod]} ${tod.charAt(0).toUpperCase() + tod.slice(1)}`;
+  if (dayNum) dayNum.textContent = time.day;
+  if (clock) clock.textContent = getClockString();
+  
+  if (workerCount) workerCount.textContent = workers.length;
+  if (armyCount) armyCount.textContent = army.length;
+  if (guardCount) guardCount.textContent = army.filter(s => s.guard).length;
+  
+  if (woodEl) woodEl.textContent = inventory.wood || 0;
+  if (foodEl) foodEl.textContent = inventory.food || 0;
+  if (wheatEl) wheatEl.textContent = inventory.wheat || 0;
+  if (arrowsEl) arrowsEl.textContent = inventory.arrows || 0;
+}
+
+// ============================================
+// ==== SAVE / LOAD ====
+// ============================================
+function saveGame() {
+  try {
+    const saveData = {
+      version: 15,
+      player: { x: player.x, y: player.y, hp: player.hp, hunger: player.hunger },
+      time: { totalMinutes: time.totalMinutes, day: time.day },
+      inventory: { ...inventory },
+      gold: gameGold,
+      autoSell: autoSell,
+      stats: {
+        harvestCount: stats.harvestCount,
+        fishCaught: stats.fishCaught,
+        animalsKilled: stats.animalsKilled,
+        wolvesKilled: stats.wolvesKilled,
+        treesChopped: stats.treesChopped,
+        shopPurchases: stats.shopPurchases,
+        sleepCount: stats.sleepCount,
+        maxGold: stats.maxGold,
+        workersHired: stats.workersHired,
+        soldiersRecruited: stats.soldiersRecruited,
+      },
+      achievements: Object.fromEntries(
+        Object.entries(achievements).map(([k, v]) => [k, v.unlocked])
+      ),
+      world: world,
+      crops: crops,
+      workers: workers.map(w => ({
+        x: w.x, y: w.y, farmArea: w.farmArea, currentCropType: w.currentCropType,
+      })),
+    };
+    localStorage.setItem('pixelFarmRPG_v15', JSON.stringify(saveData));
+    sfxSave();
+    showSaveIndicator();
+  } catch (e) {
+    console.warn('Save error:', e);
   }
-  if (phase === 'night' && !currentInterior && frameCount % 300 === 0) {
-    const inVillage = player.y/TILE < 18 && player.y/TILE > 8;
-    if (!inVillage) { player.hp = Math.max(0, player.hp - 2); flashDamage(); sfxHurt(); }
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem('pixelFarmRPG_v15');
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || data.version !== 15) return false;
+    
+    player.x = data.player.x;
+    player.y = data.player.y;
+    player.hp = data.player.hp;
+    player.hunger = data.player.hunger;
+    time.totalMinutes = data.time.totalMinutes;
+    time.day = data.time.day;
+    Object.assign(inventory, data.inventory);
+    gameGold = data.gold;
+    autoSell = data.autoSell || false;
+    Object.assign(stats, data.stats);
+    if (data.achievements) {
+      Object.entries(data.achievements).forEach(([k, v]) => {
+        if (achievements[k]) achievements[k].unlocked = v;
+      });
+    }
+    if (data.world) world = data.world;
+    if (data.crops) {
+      Object.keys(crops).forEach(k => delete crops[k]);
+      Object.assign(crops, data.crops);
+    }
+    if (data.workers) {
+      workers.length = 0;
+      data.workers.forEach((w, i) => {
+        workers.push({
+          x: w.x, y: w.y, w: 10, h: 14,
+          name: `Petani #${i+1}`,
+          color: '#8b6f47', shirt: '#5a8a3a',
+          speed: 0.6, actionDelay: 1.5, actionTimer: 0,
+          dir: 'down', animTimer: 0, walkFrame: 0,
+          state: 'idle', targetTile: null,
+          salary: 5, salaryTimer: 60,
+          currentCropType: w.currentCropType || 'wheat',
+          farmArea: w.farmArea,
+        });
+      });
+    }
+    return true;
+  } catch (e) {
+    console.warn('Load error:', e);
+    return false;
   }
-  if (player.hp <= 0) {
-    player.hp = player.hpMax/2; player.hunger = player.hungerMax/2;
-    if (currentInterior) currentInterior = null;
-    player.x = 20*TILE; player.y = 20*TILE;
-    showToast('💀 Kamu pingsan!', '#ff4444'); sfxError();
+}
+
+function showSaveIndicator() {
+  const el = document.getElementById('saveIndicator');
+  if (!el) return;
+  el.style.display = 'block';
+  clearTimeout(el._timeout);
+  el._timeout = setTimeout(() => el.style.display = 'none', 1500);
+}
+
+// ============================================
+// ==== MAIN LOOP ====
+// ============================================
+let lastTime = performance.now();
+function gameLoop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  // Time
+  time.totalMinutes += dt * time.minutesPerSecond;
+  if (time.totalMinutes >= 24 * 60) {
+    time.totalMinutes -= 24 * 60;
+    time.day++;
+    checkAchievements();
   }
 
-  const tX = player.x - canvas.width/(2*PX) + player.w/2;
-  const tY = player.y - canvas.height/(2*PX) + player.h/2;
-  camera.x += (tX - camera.x) * 0.15;
-  camera.y += (tY - camera.y) * 0.15;
-  const actW = getActiveWorld();
-  camera.x = Math.max(0, Math.min(actW[0].length*TILE - canvas.width/PX, camera.x));
-  camera.y = Math.max(0, Math.min(actW.length*TILE - canvas.height/PX, camera.y));
-
-  if (mouse.inside) {
-    mouse.tx = Math.floor((mouse.x/PX + camera.x)/TILE);
-    mouse.ty = Math.floor((mouse.y/PX + camera.y)/TILE);
+  // Hunger
+  player.hunger -= dt * 0.5;
+  if (player.hunger <= 0) {
+    player.hp -= dt * 2;
+    if (player.hp <= 0) {
+      player.hp = player.hpMax;
+      player.hunger = 50;
+      player.x = 20*TILE; player.y = 20*TILE;
+      showToast('💀 Kelaparan! Respawn...', '#ff4444');
+    }
   }
+  player.hunger = Math.max(0, player.hunger);
+  player.hp = Math.min(player.hpMax, player.hp);
+
+  updatePlayer(dt);
+  updateWorkers(dt);
+  updateArmy(dt);
+  updateWolves(dt);
+  updateAnimals(dt);
+  updateCrops(dt);
+  updateProjectiles(dt);
+  updateNPCs(dt);
+  updateFishing(dt);
+
+  // Spawn wolves at night
+  const h = (time.totalMinutes/60) % 24;
+  if ((h >= 20 || h < 5) && wolves.length < 4 && Math.random() < 0.002) {
+    spawnWolf();
+  }
+
+  // Camera
+  const targetCamX = player.x + player.w/2 - canvas.width/2;
+  const targetCamY = player.y + player.h/2 - canvas.height/2;
+  camera.x += (targetCamX - camera.x) * 0.1;
+  camera.y += (targetCamY - camera.y) * 0.1;
+  camera.x = Math.max(0, Math.min(WORLD_W*TILE - canvas.width, camera.x));
+  camera.y = Math.max(0, Math.min(WORLD_H*TILE - canvas.height, camera.y));
+
+  render();
+  updateHUD();
+
+  // Dialog timer
   if (dialogTimer > 0) {
     dialogTimer--;
-    if (dialogTimer === 0) {
+    if (dialogTimer <= 0) {
       const d = document.getElementById('dialog');
       if (d) d.style.display = 'none';
     }
   }
-  const bp = document.getElementById('bedPrompt');
-  if (bp) bp.style.display = nearBed ? 'block' : 'none';
 
-  const clk = document.getElementById('clock');
-  if (clk) clk.textContent = getClockString();
-  const dn = document.getElementById('dayNum');
-  if (dn) dn.textContent = time.day;
-  updateHUDBars();
-}
-
-function updateHUDBars() {
-  const hpF = document.getElementById('hpFill');
-  const hpT = document.getElementById('hpText');
-  const hgF = document.getElementById('hungerFill');
-  const hgT = document.getElementById('hungerText');
-  if (hpF) hpF.style.width = (player.hp/player.hpMax*100)+'%';
-  if (hpT) hpT.textContent = `${Math.round(player.hp)}/${player.hpMax}`;
-  if (hgF) hgF.style.width = (player.hunger/player.hungerMax*100)+'%';
-  if (hgT) hgT.textContent = `${Math.round(player.hunger)}/${player.hungerMax}`;
-}
-function updateHUD() {
-  const g = document.getElementById('gold');
-  const w = document.getElementById('wood');
-  const f = document.getElementById('food');
-  const wh = document.getElementById('wheat');
-  const ar = document.getElementById('arrows');
-  const wc = document.getElementById('workerCount');
-  const ac = document.getElementById('armyCount');
-  const gc = document.getElementById('guardCount');
-  if (g) g.textContent = gameGold;
-  if (w) w.textContent = inventory.wood;
-  if (f) f.textContent = inventory.food;
-  if (wh) wh.textContent = inventory.wheat;
-  if (ar) ar.textContent = inventory.arrows;
-  if (wc) wc.textContent = workers.length;
-  if (ac) ac.textContent = army.length;
-  if (gc) gc.textContent = army.filter(s => s.guard).length;
-  if (gameGold > stats.maxGold) stats.maxGold = gameGold;
-  checkAchievements();
+  requestAnimationFrame(gameLoop);
 }
 
 // ============================================
-// ==== DRAW ====
+// ==== EVENT LISTENERS ====
 // ============================================
-function artPx(x, y, w, h, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(Math.floor((x-camera.x)*PX), Math.floor((y-camera.y)*PX), w*PX, h*PX);
-}
-function drawTile(t, x, y) {
-  const wx = x*TILE, wy = y*TILE;
-  if (t === T_GRASS) {
-    artPx(wx, wy, TILE, TILE, '#3a7d44');
-    artPx(wx+2, wy+3, 1, 1, '#4a9d54');
-    artPx(wx+10, wy+6, 1, 1, '#4a9d54');
-    artPx(wx+6, wy+11, 1, 1, '#2d5f35');
-  } else if (t === T_PATH) {
-    artPx(wx, wy, TILE, TILE, '#8b6f47');
-    artPx(wx+3, wy+5, 1, 1, '#6f5638');
-    artPx(wx+9, wy+9, 1, 1, '#6f5638');
-  } else if (t === T_WATER) {
-    artPx(wx, wy, TILE, TILE, '#2a5db0');
-    const wave = Math.sin(frameCount*0.03 + x + y) * 2;
-    artPx(wx+3+wave, wy+4, 3, 1, '#4a7dd0');
-    artPx(wx+9-wave, wy+10, 3, 1, '#4a7dd0');
-  } else if (t === T_TREE) {
-    artPx(wx, wy, TILE, TILE, '#3a7d44');
-    artPx(wx+6, wy+11, 4, 5, '#5a3a1a');
-    artPx(wx+1, wy+1, 14, 11, '#1e5a2a');
-    artPx(wx+2, wy+0, 12, 3, '#2d7d3a');
-    artPx(wx+4, wy+2, 3, 3, '#4a9d54');
-    artPx(wx+9, wy+5, 3, 3, '#4a9d54');
-  } else if (t === T_STUMP) {
-    artPx(wx, wy, TILE, TILE, '#3a7d44');
-    artPx(wx+4, wy+8, 8, 6, '#5a3a1a');
-    artPx(wx+5, wy+8, 6, 2, '#7a5030');
-  } else if (t === T_SAPLING) {
-    artPx(wx, wy, TILE, TILE, '#3a7d44');
-    artPx(wx+7, wy+8, 2, 8, '#5a3a1a');
-    artPx(wx+4, wy+5, 4, 4, '#2d7d3a');
-    artPx(wx+8, wy+6, 4, 4, '#2d7d3a');
-  } else if (t === T_FARMLAND) {
-    artPx(wx, wy, TILE, TILE, '#6b4423');
-    for (let i=3; i<16; i+=4) artPx(wx, wy+i, TILE, 1, '#4a2f18');
-  } else if (t === T_CROP) {
-    artPx(wx, wy, TILE, TILE, '#6b4423');
-    for (let i=3; i<16; i+=4) artPx(wx, wy+i, TILE, 1, '#4a2f18');
-    const c = crops[`${x},${y}`];
-    const stage = c ? c.stage : 0;
-    const cropType = c ? (c.type || 'wheat') : 'wheat';
-    const cx = wx+6, cy = wy+6;
-    const ct = CROP_TYPES[cropType] || CROP_TYPES.wheat;
-    if (stage === 0) { artPx(cx+1, cy+6, 2, 3, '#5aff5a'); artPx(cx, cy+5, 1, 2, '#3a9d3a'); }
-    else if (stage === 1) { artPx(cx+1, cy+3, 2, 6, '#5aff5a'); artPx(cx, cy+2, 1, 4, '#3a9d3a'); artPx(cx+3, cy+2, 1, 4, '#3a9d3a'); }
-    else if (stage === 2) { artPx(cx+1, cy+0, 2, 9, '#7fd77f'); artPx(cx, cy-1, 1, 7, '#5aa55a'); artPx(cx+3, cy-1, 1, 7, '#5aa55a'); artPx(cx+1, cy-1, 2, 2, '#d4d44a'); }
-    else if (stage >= 3) {
-      const glow = Math.sin(frameCount*0.1)*0.3 + 0.7;
-      ctx.shadowColor = ct.color; ctx.shadowBlur = 12*glow;
-      artPx(cx+1, cy-2, 2, 11, ct.color);
-      artPx(cx, cy-3, 1, 9, ct.color);
-      artPx(cx+3, cy-3, 1, 9, ct.color);
-      artPx(cx, cy-4, 4, 3, ct.color);
-      if (cropType === 'wheat') artPx(cx, cy-4, 4, 3, '#ffed4a');
-      else if (cropType === 'corn') { artPx(cx+1, cy-3, 2, 4, '#ffcc33'); artPx(cx, cy-1, 4, 2, '#5a8a2a'); }
-      else if (cropType === 'tomato') { artPx(cx, cy-3, 4, 4, '#ff3333'); artPx(cx+1, cy-4, 2, 2, '#5a8a2a'); }
-      ctx.shadowBlur = 0;
-    }
-  } else if (t === T_FLOWER) {
-    artPx(wx, wy, TILE, TILE, '#3a7d44');
-    artPx(wx+2, wy+3, 1, 1, '#4a9d54');
-    const colors = ['#ff6b9d', '#ffaa55', '#aa6bff', '#6bd8ff'];
-    const c = colors[(x*7+y*3) % colors.length];
-    artPx(wx+6, wy+7, 4, 4, c);
-    artPx(wx+7, wy+8, 2, 2, '#ffeb3b');
-  } else if (t === T_HOUSE) {
-    const isNight = getTimeOfDay() === 'night' || getTimeOfDay() === 'evening';
-    artPx(wx, wy, TILE, TILE, '#5a3a1a');
-    artPx(wx, wy+4, TILE, TILE-4, '#c89b6a');
-    artPx(wx+1, wy+1, TILE-2, 1, '#7a5030');
-    if (isNight) { ctx.shadowColor = '#ffed4a'; ctx.shadowBlur = 12; artPx(wx+5, wy+8, 6, 5, '#ffed4a'); ctx.shadowBlur = 0; }
-    else artPx(wx+5, wy+8, 6, 5, '#4a90e2');
-  } else if (t === T_HOUSE_DOOR) {
-    if (nearDoor && !currentInterior) {
-      const glow = Math.sin(frameCount*0.15)*0.4 + 0.6;
-      ctx.shadowColor = '#4a90e2'; ctx.shadowBlur = 25*glow;
-    }
-    artPx(wx, wy, TILE, TILE, '#5a3a1a');
-    artPx(wx, wy+4, TILE, TILE-4, '#c89b6a');
-    artPx(wx+3, wy+7, 10, 9, '#5a3a1a');
-    artPx(wx+11, wy+12, 1, 1, '#ffd700');
-    ctx.shadowBlur = 0;
-  } else if (t === T_SHOP) {
-    if (nearShop) {
-      const glow = Math.sin(frameCount*0.15)*0.4 + 0.6;
-      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 30*glow;
-    } else {
-      const glow = Math.sin(frameCount*0.08) * 0.2 + 0.8;
-      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 15 * glow;
-    }
-    artPx(wx, wy, TILE, TILE, '#ffd700');
-    artPx(wx, wy, TILE, 4, '#ff8800');
-    artPx(wx+2, wy+6, 12, 8, '#8b4513');
-    artPx(wx+3, wy+7, 4, 4, '#ffe66d');
-    artPx(wx+9, wy+7, 4, 4, '#ffe66d');
-    ctx.shadowBlur = 0;
-  } else if (t === T_CAMP) {
-    artPx(wx, wy, TILE, TILE, '#8b6f47');
-    artPx(wx+1, wy+1, TILE-2, TILE-2, '#6b4f27');
-    artPx(wx+2, wy+4, 12, 10, '#8b3a3a');
-    artPx(wx+4, wy+2, 8, 4, '#c0392b');
-    artPx(wx+7, wy+10, 2, 4, '#3a1a1a');
-    ctx.shadowColor = '#ff5555'; ctx.shadowBlur = 8;
-    artPx(wx+6, wy+12, 4, 2, '#ffd700');
-    ctx.shadowBlur = 0;
-  } else if (t === T_LAMP) {
-    artPx(wx, wy, TILE, TILE, '#3a7d44');
-    artPx(wx+6, wy+4, 4, 12, '#555');
-    const isNight = getTimeOfDay() === 'night' || getTimeOfDay() === 'evening';
-    if (isNight) { ctx.shadowColor = '#ffed4a'; ctx.shadowBlur = 20; artPx(wx+4, wy+1, 8, 6, '#ffed4a'); ctx.shadowBlur = 0; }
-    else artPx(wx+4, wy+1, 8, 6, '#666');
-  } else if (t === T_INTERIOR_FLOOR) {
-    artPx(wx, wy, TILE, TILE, '#8b6f47');
-    artPx(wx, wy+7, TILE, 1, '#7a5f38');
-    artPx(wx+7, wy, 1, TILE, '#7a5f38');
-  } else if (t === T_WALL) {
-    artPx(wx, wy, TILE, TILE, '#5a3a1a');
-    artPx(wx+1, wy+1, TILE-2, 2, '#7a5030');
-    artPx(wx+1, wy+8, TILE-2, 2, '#7a5030');
-  } else if (t === T_BED) {
-    artPx(wx, wy, TILE, TILE, '#8b6f47');
-    artPx(wx, wy, TILE, 6, '#ff4444');
-    artPx(wx+2, wy+2, TILE-4, 3, '#ffffff');
-    artPx(wx, wy+8, TILE, TILE-8, '#4a90e2');
-    if (nearBed) {
-      const glow = Math.sin(frameCount*0.15)*0.4 + 0.6;
-      ctx.strokeStyle = '#ffed4a'; ctx.lineWidth = 3; ctx.globalAlpha = glow;
-      ctx.strokeRect(Math.floor((wx-camera.x)*PX)+1, Math.floor((wy-camera.y)*PX)+1, TILE*PX-2, TILE*PX-2);
-      ctx.globalAlpha = 1;
-    }
-  } else if (t === T_TABLE) {
-    artPx(wx, wy, TILE, TILE, '#8b6f47');
-    artPx(wx+1, wy+1, TILE-2, TILE-2, '#a07a50');
-  }
-}
-function drawHumanoid(x, y, dir, walkFrame, color, skin='#ffcc99', shirtColor=null) {
-  const skinTone = skin, shirt = shirtColor || color, pants = '#1a3a8a', hair = '#3a2010';
-  const bob = (walkFrame === 1 || walkFrame === 3) ? -1 : 0;
-  ctx.globalAlpha = 0.3; artPx(x+2, y+15, 8, 2, '#000'); ctx.globalAlpha = 1;
-  artPx(x+3, y+0+bob, 6, 6, skinTone);
-  if (dir === 'down') {
-    artPx(x+3, y+0+bob, 6, 2, hair);
-    artPx(x+4, y+3+bob, 1, 1, '#000'); artPx(x+7, y+3+bob, 1, 1, '#000');
-  } else if (dir === 'up') artPx(x+3, y+0+bob, 6, 4, hair);
-  else if (dir === 'left') { artPx(x+3, y+0+bob, 6, 2, hair); artPx(x+5, y+0+bob, 4, 4, hair); artPx(x+4, y+3+bob, 1, 1, '#000'); }
-  else { artPx(x+3, y+0+bob, 6, 2, hair); artPx(x+3, y+0+bob, 4, 4, hair); artPx(x+7, y+3+bob, 1, 1, '#000'); }
-  artPx(x+3, y+6+bob, 6, 5, shirt);
-  artPx(x+2, y+7+bob, 1, 3, skinTone);
-  artPx(x+9, y+7+bob, 1, 3, skinTone);
-  const legY = y + 11 + bob;
-  if (walkFrame === 1) { artPx(x+3, legY, 2, 5, pants); artPx(x+7, legY+1, 2, 4, pants); }
-  else if (walkFrame === 3) { artPx(x+3, legY+1, 2, 4, pants); artPx(x+7, legY, 2, 5, pants); }
-  else { artPx(x+3, legY, 2, 5, pants); artPx(x+7, legY, 2, 5, pants); }
-  artPx(x+3, legY+4, 2, 1, '#000'); artPx(x+7, legY+4, 2, 1, '#000');
-}
-function drawArmor(s, x, y, dir, bob) {
-  if (s.armorStyle === 'chain') {
-    const ac = s.armorColor;
-    artPx(x+3, y+6+bob, 6, 5, ac);
-    for (let dy = 0; dy < 5; dy += 2) {
-      for (let dx = 0; dx < 6; dx += 2) {
-        artPx(x+3+dx, y+6+bob+dy, 1, 1, '#7a7a7a');
-      }
-    }
-    artPx(x+2, y+6+bob, 1, 3, '#8a8a8a');
-    artPx(x+9, y+6+bob, 1, 3, '#8a8a8a');
-    artPx(x+3, y+1+bob, 6, 3, ac);
-    artPx(x+4, y+3+bob, 1, 1, '#000');
-    artPx(x+7, y+3+bob, 1, 1, '#000');
-  } else if (s.armorStyle === 'leather') {
-    const ac = s.armorColor;
-    artPx(x+3, y+6+bob, 6, 5, ac);
-    artPx(x+4, y+6+bob, 1, 5, '#3a2010');
-    artPx(x+7, y+6+bob, 1, 5, '#3a2010');
-    artPx(x+2, y+10+bob, 8, 1, '#3a2010');
-    artPx(x+2, y-1+bob, 8, 2, '#2a5a2a');
-    artPx(x+3, y+0+bob, 6, 1, '#3a6a3a');
-  } else if (s.armorStyle === 'plate') {
-    const ac = s.armorColor;
-    artPx(x+2, y+6+bob, 8, 6, ac);
-    artPx(x+3, y+7+bob, 6, 1, '#e0e0e0');
-    artPx(x+1, y+6+bob, 2, 4, ac);
-    artPx(x+9, y+6+bob, 2, 4, ac);
-    artPx(x+1, y+6+bob, 2, 1, '#e0e0e0');
-    artPx(x+9, y+6+bob, 2, 1, '#e0e0e0');
-    artPx(x+3, y+0+bob, 6, 4, ac);
-    artPx(x+4, y+2+bob, 4, 1, '#333');
-    artPx(x+3, y+3+bob, 6, 1, '#a0a0a0');
-  }
-}
-function drawWorker(w) {
-  ctx.globalAlpha = 0.3;
-  artPx(w.x+2, w.y+15, 8, 2, '#000');
-  ctx.globalAlpha = 1;
-  drawHumanoid(w.x, w.y, w.dir, w.walkFrame, w.color, '#e8b088', w.shirt);
-  const bob = (w.walkFrame === 1 || w.walkFrame === 3) ? -1 : 0;
-  artPx(w.x+1, w.y-1+bob, 10, 1, '#d4a76a');
-  artPx(w.x+3, w.y-2+bob, 6, 1, '#b8905a');
-  if (w.state === 'hoe' || w.state === 'plant' || w.state === 'water' || w.state === 'harvest') {
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    const icon = w.state === 'hoe' ? '🪓' : w.state === 'plant' ? '🌱' : w.state === 'water' ? '💧' : '🌾';
-    ctx.fillText(icon, Math.floor((w.x - camera.x)*PX) + 5*PX, Math.floor((w.y - camera.y)*PX) - 4);
-  }
-}
-function drawSoldier(s) {
-  if (s.hurtFlash > 0 && s.hurtFlash % 4 < 2) {
-    ctx.globalAlpha = 0.5;
-    artPx(s.x+2, s.y+15, 8, 2, '#000');
-    artPx(s.x+3, s.y, 6, 16, '#ff0000');
-    ctx.globalAlpha = 1;
-    return;
-  }
-  const bob = (s.walkFrame === 1 || s.walkFrame === 3) ? -1 : 0;
-  ctx.globalAlpha = 0.3;
-  artPx(s.x+2, s.y+15, 8, 2, '#000');
-  ctx.globalAlpha = 1;
-  const skinTone = '#e8b088', shirt = s.shirt, pants = '#3a3a3a';
-  artPx(s.x+3, s.y+0+bob, 6, 6, skinTone);
-  artPx(s.x+3, s.y+6+bob, 6, 5, shirt);
-  artPx(s.x+2, s.y+7+bob, 1, 3, skinTone);
-  artPx(s.x+9, s.y+7+bob, 1, 3, skinTone);
-  const legY = s.y + 11 + bob;
-  if (s.walkFrame === 1) { artPx(s.x+3, legY, 2, 5, pants); artPx(s.x+7, legY+1, 2, 4, pants); }
-  else if (s.walkFrame === 3) { artPx(s.x+3, legY+1, 2, 4, pants); artPx(s.x+7, legY, 2, 5, pants); }
-  else { artPx(s.x+3, legY, 2, 5, pants); artPx(s.x+7, legY, 2, 5, pants); }
-  artPx(s.x+3, legY+4, 2, 1, '#000'); artPx(s.x+7, legY+4, 2, 1, '#000');
-  drawArmor(s, s.x, s.y, s.dir, bob);
-  if (s.type === 'swordsman') {
-    artPx(s.x+10, s.y+6+bob, 1, 8, '#c0c0c0');
-    artPx(s.x+10, s.y+13+bob, 1, 1, '#ffd700');
-    artPx(s.x+9, s.y+13+bob, 3, 1, '#8b4513');
-  } else if (s.type === 'archer') {
-    ctx.strokeStyle = '#8b5a2b';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(
-      Math.floor((s.x - camera.x)*PX) + 5*PX,
-      Math.floor((s.y - camera.y)*PX) + 8*PX,
-      5*PX,
-      -Math.PI/2,
-      Math.PI/2
-    );
-    ctx.stroke();
-  } else if (s.type === 'knight') {
-    artPx(s.x+10, s.y+5+bob, 2, 10, '#e0e0e0');
-    artPx(s.x+10, s.y+14+bob, 2, 1, '#ffd700');
-    artPx(s.x+9, s.y+14+bob, 4, 1, '#8b4513');
-    artPx(s.x-1, s.y+6+bob, 3, 5, '#8b3a3a');
-    artPx(s.x, s.y+7+bob, 1, 3, '#ffd700');
-  }
-  if (s.guard) {
-    const pulse = Math.sin(frameCount*0.15) * 0.3 + 0.7;
-    ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = pulse;
-    ctx.beginPath();
-    ctx.arc(
-      Math.floor((s.x - camera.x)*PX) + 5*PX,
-      Math.floor((s.y - camera.y)*PX) + 8*PX,
-      12*PX,
-      0,
-      Math.PI * 2
-    );
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.font = '10px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('🛡️', Math.floor((s.x - camera.x)*PX) + 5*PX, Math.floor((s.y - camera.y)*PX) - 6);
-  }
-  if (s.hp < s.hpMax) {
-    const hw = 20;
-    const hx = Math.floor((s.x - camera.x)*PX) - 5;
-    const hy = Math.floor((s.y - camera.y)*PX) - 12;
-    ctx.fillStyle = '#000'; ctx.fillRect(hx-1, hy-1, hw+2, 5);
-    ctx.fillStyle = '#ff4444'; ctx.fillRect(hx, hy, hw * (s.hp/s.hpMax), 3);
-  }
-}
-function drawAnimal(a) {
-  if (a.dead) return;
-  const x = a.x, y = a.y;
-  const t = ANIMAL_TYPES[a.type];
-  let color = t.color;
-  if (a.hurtFlash > 0 && a.hurtFlash % 4 < 2) color = '#ff4444';
-  ctx.globalAlpha = 0.3; artPx(x-2, y+10, 10, 2, '#000'); ctx.globalAlpha = 1;
-  const bob = (a.walkFrame === 1 || a.walkFrame === 3) ? -1 : 0;
-  artPx(x-2, y-4+bob, 10, 10, color);
-  if (a.type === 'rabbit') {
-    artPx(x-1, y-8+bob, 2, 5, color); artPx(x+3, y-8+bob, 2, 5, color);
-    artPx(x-2, y-5+bob, 10, 4, color);
-    artPx(x+0, y-3+bob, 1, 1, '#000'); artPx(x+4, y-3+bob, 1, 1, '#000');
-  } else if (a.type === 'chicken') {
-    artPx(x+1, y-8+bob, 4, 5, color);
-    artPx(x+2, y-10+bob, 2, 3, '#ff4444');
-    artPx(x+5, y-6+bob, 3, 2, '#ff8800');
-    artPx(x+2, y-6+bob, 1, 1, '#000');
-  } else if (a.type === 'cow') {
-    artPx(x-3, y-8+bob, 12, 8, color);
-    artPx(x-4, y-7+bob, 2, 2, '#333'); artPx(x+8, y-7+bob, 2, 2, '#333');
-    artPx(x-1, y-5+bob, 2, 2, '#000'); artPx(x+5, y-5+bob, 2, 2, '#000');
-    artPx(x+1, y-2+bob, 4, 2, '#ffaaaa');
-  }
-  if (a.hp < a.hpMax) {
-    const w = 20;
-    const hx = Math.floor((x-camera.x)*PX)-4;
-    const hy = Math.floor((y-camera.y)*PX)-20;
-    ctx.fillStyle = '#000'; ctx.fillRect(hx-1, hy-1, w+2, 5);
-    ctx.fillStyle = '#ff4444'; ctx.fillRect(hx, hy, w*(a.hp/a.hpMax), 3);
-  }
-}
-function drawWolf(w) {
-  const x = w.x, y = w.y;
-  let color = '#666';
-  if (w.hurtFlash > 0 && w.hurtFlash % 4 < 2) color = '#ff4444';
-  ctx.globalAlpha = 0.3; artPx(x-2, y+12, 14, 2, '#000'); ctx.globalAlpha = 1;
-  const bob = (w.walkFrame === 1 || w.walkFrame === 3) ? -1 : 0;
-  artPx(x-2, y-4+bob, 14, 10, color);
-  artPx(x-4, y-8+bob, 8, 8, color);
-  artPx(x-4, y-11+bob, 2, 3, color); artPx(x+0, y-11+bob, 2, 3, color);
-  artPx(x-7, y-4+bob, 4, 3, '#444');
-  ctx.shadowColor = '#ff0'; ctx.shadowBlur = 8;
-  artPx(x-3, y-6+bob, 2, 2, '#ff0'); artPx(x+1, y-6+bob, 2, 2, '#ff0');
-  ctx.shadowBlur = 0;
-  artPx(x+12, y-2+bob, 4, 2, color);
-  if (w.hp < w.hpMax) {
-    const ww = 22;
-    const hx = Math.floor((x-camera.x)*PX)-6;
-    const hy = Math.floor((y-camera.y)*PX)-24;
-    ctx.fillStyle = '#000'; ctx.fillRect(hx-1, hy-1, ww+2, 5);
-    ctx.fillStyle = '#ff3333'; ctx.fillRect(hx, hy, ww*(w.hp/w.hpMax), 3);
-  }
-}
-function drawArrow(a) {
-  ctx.fillStyle = '#8b5a2b';
-  ctx.fillRect(Math.floor((a.x-camera.x)*PX)-3, Math.floor((a.y-camera.y)*PX)-1, 6, 2);
-  ctx.fillStyle = '#ddd';
-  ctx.fillRect(Math.floor((a.x-camera.x)*PX)+3, Math.floor((a.y-camera.y)*PX)-1, 3, 2);
-}
-function drawNpc(npc) {
-  drawHumanoid(npc.x, npc.y, npc.dir, npc.walkFrame, npc.color, '#e8b088', npc.color);
-  const dx = npc.x - player.x, dy = npc.y - player.y;
-  if (Math.hypot(dx, dy) < 60) {
-    const sx = Math.floor((npc.x-camera.x)*PX)+15;
-    const sy = Math.floor((npc.y-camera.y)*PX)-10;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
-    const w = ctx.measureText(npc.name).width + 8;
-    ctx.fillRect(sx - w/2, sy - 10, w, 14);
-    ctx.fillStyle = '#ffed4a'; ctx.fillText(npc.name, sx, sy);
-  }
-}
-function drawCursorHighlight() {
-  if (!mouse.inside || currentInterior) return;
-  const tx = mouse.tx, ty = mouse.ty;
-  if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
-  const px = Math.floor((tx*TILE-camera.x)*PX);
-  const py = Math.floor((ty*TILE-camera.y)*PX);
-  let color = '#444', alpha = 0.3;
-  if (currentTool) {
-    const t = world[ty][tx];
-    const key = `${tx},${ty}`;
-    if (currentTool === 'hoe' && (t === T_GRASS || t === T_FLOWER)) { color = '#a07040'; alpha = 0.7; }
-    else if (currentTool === 'seed' && t === T_FARMLAND) { color = '#5aff5a'; alpha = 0.7; }
-    else if (currentTool === 'water' && t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) { color = '#4a90e2'; alpha = 0.7; }
-    else if (currentTool === 'harvest' && t === T_CROP && crops[key] && crops[key].stage >= 3) { color = '#ffed4a'; alpha = 0.9; }
-    else if (currentTool === 'axe' && t === T_TREE) { color = '#ff8800'; alpha = 0.8; }
-    else if (currentTool === 'shovel' && (t === T_FARMLAND || t === T_CROP || t === T_STUMP || t === T_SAPLING || t === T_FLOWER)) { color = '#8b6f47'; alpha = 0.8; }
-    else if (currentTool === 'sword') {
-      const a = getAnimalAt(tx, ty); const w = getWolfAt(tx, ty);
-      if (a || w) { color = '#ff3333'; alpha = 0.9; } else { color = '#88f'; alpha = 0.5; }
-    }
-    else if (currentTool === 'bow') { color = '#8b5a2b'; alpha = 0.7; }
-    else if (currentTool === 'rod') { color = '#4a90e2'; alpha = 0.7; }
-  }
-  ctx.strokeStyle = color;
-  ctx.lineWidth = currentTool ? 3 : 2;
-  ctx.globalAlpha = alpha;
-  ctx.strokeRect(px+1, py+1, TILE*PX-2, TILE*PX-2);
-  ctx.globalAlpha = alpha * 0.25;
-  ctx.fillStyle = color;
-  ctx.fillRect(px, py, TILE*PX, TILE*PX);
-  ctx.globalAlpha = 1;
-}
-function drawSkyOverlay() {
-  if (currentInterior) {
-    const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 200, canvas.width/2, canvas.height/2, canvas.width*0.8);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.4)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    return;
-  }
-  const phase = getTimeOfDay();
-  ctx.fillStyle = skyColors[phase];
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const darkness = getDarkness();
-  if (darkness > 0) {
-    const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 100, canvas.width/2, canvas.height/2, canvas.width*0.7);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(0.7, `rgba(10,10,40,${darkness*0.5})`);
-    grad.addColorStop(1, `rgba(10,10,40,${darkness})`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-  const h = (time.totalMinutes/60)%24;
-  let iconX, iconY, iconEmoji;
-  if (h >= 5 && h < 19) {
-    const progress = (h-5)/14;
-    iconX = canvas.width*0.1 + canvas.width*0.8*progress;
-    iconY = 60 + Math.sin(progress*Math.PI)*-20;
-    iconEmoji = h < 9 ? '🌅' : h < 17 ? '☀️' : '🌇';
-  } else {
-    const nh = h >= 19 ? h-19 : h+5;
-    const progress = nh/10;
-    iconX = canvas.width*0.1 + canvas.width*0.8*progress;
-    iconY = 60 + Math.sin(progress*Math.PI)*-20;
-    iconEmoji = '🌙';
-  }
-  ctx.font = '32px serif'; ctx.textAlign = 'center';
-  ctx.fillText(iconEmoji, iconX, iconY);
-  if (fishing.active && fishing.state === 'waiting') {
-    ctx.font = '20px monospace';
-    ctx.fillStyle = '#4a90e2';
-    ctx.textAlign = 'center';
-    ctx.fillText('🎣...', canvas.width/2, canvas.height - 100);
-  }
-}
-function draw() {
-  ctx.fillStyle = currentInterior ? '#1a1a2e' : '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const ww = getActiveWorld();
-  const startX = Math.max(0, Math.floor(camera.x/TILE)-1);
-  const endX = Math.min(ww[0].length, Math.ceil((camera.x + canvas.width/PX)/TILE)+1);
-  const startY = Math.max(0, Math.floor(camera.y/TILE)-1);
-  const endY = Math.min(ww.length, Math.ceil((camera.y + canvas.height/PX)/TILE)+1);
-  for (let y=startY; y<endY; y++)
-    for (let x=startX; x<endX; x++)
-      if (ww[y] && ww[y][x] !== undefined) drawTile(ww[y][x], x, y);
+document.querySelectorAll('.tool').forEach(t => {
+  t.addEventListener('click', () => {
+    ensureAudio();
+    sfxClick();
+    setTool(t.dataset.tool === currentTool ? null : t.dataset.tool);
+  });
+});
 
-  if (!currentInterior) {
-    const entities = [];
-    npcs.forEach(n => entities.push({y: n.y, draw: () => drawNpc(n)}));
-    animals.forEach(a => { if (!a.dead) entities.push({y: a.y, draw: () => drawAnimal(a)}); });
-    wolves.forEach(w => entities.push({y: w.y, draw: () => drawWolf(w)}));
-    workers.forEach(w => entities.push({y: w.y, draw: () => drawWorker(w)}));
-    army.forEach(s => entities.push({y: s.y, draw: () => drawSoldier(s)}));
-    entities.push({y: player.y, draw: () => {
-      drawHumanoid(player.x, player.y, player.dir, player.walkFrame, '#4a90e2', '#ffcc99', '#4a90e2');
-    }});
-    entities.sort((a,b) => a.y - b.y).forEach(e => e.draw());
-    arrows.forEach(drawArrow);
-    projectiles.forEach(drawArrow);
-  } else {
-    drawHumanoid(player.x, player.y, player.dir, player.walkFrame, '#4a90e2', '#ffcc99', '#4a90e2');
-  }
-  drawCursorHighlight();
-  drawSkyOverlay();
-}
-function loop() {
-  try {
-    update();
-    draw();
-  } catch(err) {
-    console.error('Loop error:', err);
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(0, 0, canvas.width, 80);
-    ctx.fillStyle = '#f00';
-    ctx.font = '14px monospace';
-    ctx.fillText('ERROR: ' + err.message, 20, 30);
-  }
-  requestAnimationFrame(loop);
-}
+document.querySelectorAll('.seedOpt').forEach(s => {
+  s.addEventListener('click', () => {
+    sfxClick();
+    currentSeed = s.dataset.seed;
+    document.querySelectorAll('.seedOpt').forEach(x => x.classList.remove('active'));
+    s.classList.add('active');
+  });
+});
 
-document.body.addEventListener('click', () => ensureAudio(), { once: false });
-updateHUD(); updateToolbarUI(); updateHUDBars(); loop();
+document.querySelectorAll('.shopTab').forEach(t => {
+  t.addEventListener('click', () => {
+    sfxClick();
+    renderShop(t.dataset.tab);
+  });
+});
+
+document.getElementById('closeInvBtn').onclick = () => { sfxClick(); closeAllPanels(); };
+document.getElementById('closeShopBtn').onclick = () => { sfxClick(); closeAllPanels(); };
+document.getElementById('closeHireBtn').onclick = () => { sfxClick(); closeAllPanels(); };
+document.getElementById('closeArmyBtn').onclick = () => { sfxClick(); closeAllPanels(); };
+document.getElementById('closeAchBtn').onclick = () => { sfxClick(); closeAllPanels(); };
+
+document.getElementById('saveBtn').onclick = () => { ensureAudio(); saveGame(); };
+document.getElementById('achBtn').onclick = () => { ensureAudio(); sfxClick(); toggleAchievements(); };
+document.getElementById('shopBtn').onclick = () => { ensureAudio(); sfxClick(); toggleShop(); };
+document.getElementById('hireBtn').onclick = () => { ensureAudio(); sfxClick(); toggleHirePanel(); };
+document.getElementById('armyBtn').onclick = () => { ensureAudio(); sfxClick(); toggleArmyPanel(); };
+
+document.getElementById('muteIcon').onclick = () => {
+  muted = !muted;
+  document.getElementById('muteIcon').textContent = muted ? '🔇' : '🔊';
+  if (masterGain) masterGain.gain.value = muted ? 0 : masterVolume;
+  sfxClick();
+};
+
+// Auto-save every 30 seconds
+setInterval(() => {
+  if (audioCtx) saveGame();
+}, 30000);
+
+// Save on exit
+window.addEventListener('beforeunload', () => saveGame());
+
+// ============================================
+// ==== INIT ====
+// ============================================
+const loaded = loadGame();
+if (!loaded) {
+  showToast('🌾 Selamat datang di Pixel Farm RPG!', '#ffed4a');
+}
+updateHUD();
+requestAnimationFrame(gameLoop);
+
+// Init audio on first interaction
+document.addEventListener('click', () => ensureAudio(), { once: true });
+document.addEventListener('keydown', () => ensureAudio(), { once: true });
+
+console.log('🌾 Pixel Farm RPG v15 loaded!');
 </script>
 </body>
 </html>
 """
-
-components.html(game_html, height=650)
+components.html(game_html, height=700, scrolling=False)
