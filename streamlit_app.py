@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Pixel Farm RPG", page_icon="🌾", layout="wide")
 st.title("🌾 Pixel Farm RPG - Worker & Army")
-st.caption("**WASD** jalan • **Klik** action • **1-9** tool • **H** hire worker • **R** rekrut prajurit • **I** inventory • **B** shop • **E** interaksi")
+st.caption("**WASD** jalan • **Klik** action • **1-9** tool • **H** hire • **R** army • **G** guard • **I** inventory • **B** shop • **E** interaksi")
 
 game_html = r"""
 <!DOCTYPE html>
@@ -84,14 +84,13 @@ game_html = r"""
     0%, 100% { transform: translate(-50%,-50%) scale(1); }
     50% { transform: translate(-50%,-50%) scale(1.05); }
   }
-  #saveBtn { position:absolute; top:60px; left:12px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#5aff5a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
-  #saveBtn:hover { border-color:#5aff5a; }
-  #achBtn { position:absolute; top:60px; left:90px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ffed4a; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
-  #shopBtn { position:absolute; top:60px; left:170px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ffd700; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
-  #hireBtn { position:absolute; top:60px; left:235px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ffaa55; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
-  #hireBtn:hover { border-color:#ffaa55; box-shadow:0 0 10px rgba(255,170,85,0.4); }
-  #armyBtn { position:absolute; top:60px; left:315px; background:rgba(30,30,50,0.9); border:2px solid #444; color:#ff5555; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
-  #armyBtn:hover { border-color:#ff5555; box-shadow:0 0 10px rgba(255,85,85,0.4); }
+  .uiBtn { position:absolute; top:60px; background:rgba(30,30,50,0.9); border:2px solid #444; padding:6px 12px; font-family:inherit; font-size:11px; cursor:pointer; border-radius:4px; z-index:20; }
+  #saveBtn { left:12px; color:#5aff5a; }
+  #achBtn { left:90px; color:#ffed4a; }
+  #shopBtn { left:170px; color:#ffd700; }
+  #hireBtn { left:235px; color:#ffaa55; }
+  #armyBtn { left:315px; color:#ff5555; }
+  .uiBtn:hover { border-color:currentColor; box-shadow:0 0 10px currentColor; }
   #fishIndicator { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.9); border:3px solid #4a90e2; color:#4a90e2; padding:14px 24px; font-size:15px; display:none; text-align:center; border-radius:8px; box-shadow:0 0 30px rgba(74,144,226,0.5); z-index:150; pointer-events:none; min-width:280px; }
   #fishBar { width:220px; height:20px; background:rgba(0,0,0,0.7); border:2px solid #4a90e2; border-radius:3px; margin:10px auto 0; position:relative; overflow:hidden; }
   #fishBar .fill { height:100%; background:linear-gradient(90deg, #4a90e2, #5aff5a); width:0%; }
@@ -100,6 +99,7 @@ game_html = r"""
   .seedOpt.active { background:linear-gradient(180deg, #2a5d2a, #1a3d1a); border-color:#ffed4a; color:#ffed4a; }
   #seedPickerWrap { position:absolute; bottom:110px; left:50%; transform:translateX(-50%); background:rgba(15,15,25,0.95); border:2px solid #ffed4a; border-radius:8px; padding:10px; display:none; z-index:80; }
   .unitRow { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(30,30,50,0.6); border:2px solid #333; border-radius:6px; margin-bottom:6px; }
+  .unitRow.guard { border-color:#ffd700; box-shadow:0 0 8px rgba(255,215,0,0.4); }
   .unitRow .info { display:flex; align-items:center; gap:10px; }
   .unitRow .emoji { font-size:22px; }
   .unitRow .name { color:#fff; font-size:13px; }
@@ -107,8 +107,13 @@ game_html = r"""
   .unitRow .status.working { color:#5aff5a; }
   .unitRow .status.idle { color:#ffaa00; }
   .unitRow .status.fighting { color:#ff5555; }
-  .unitRow button { background:linear-gradient(180deg, #5d2a2a, #3d1a1a); border:2px solid #ff5555; color:#ff5555; padding:4px 10px; font-family:inherit; font-size:11px; border-radius:4px; cursor:pointer; font-weight:bold; }
+  .unitRow .status.guard { color:#ffd700; }
+  .unitRow .slotInfo { color:#ffaa55; font-size:10px; }
+  .unitRow button { background:linear-gradient(180deg, #5d2a2a, #3d1a1a); border:2px solid #ff5555; color:#ff5555; padding:4px 10px; font-family:inherit; font-size:11px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:4px; }
   .unitRow button:hover { background:linear-gradient(180deg, #7d3a3a, #5d2a2a); }
+  .unitRow button.guardBtn { background:linear-gradient(180deg, #5d5a2a, #3d3a1a); border-color:#ffd700; color:#ffd700; }
+  .unitRow button.guardBtn:hover { background:linear-gradient(180deg, #7d7a3a, #5d5a2a); }
+  .unitRow button.guardBtn.active { background:linear-gradient(180deg, #ffd700, #aa8800); color:#000; }
 </style>
 </head>
 <body>
@@ -123,7 +128,7 @@ game_html = r"""
     <div id="timeOfDay">🌅 Pagi</div>
     <div>Day <span id="dayNum">1</span> — <span id="clock">06:00</span></div>
     <div>🪙 <span id="gold">0</span></div>
-    <div style="font-size:11px;color:#ffaa55">👨‍🌾 <span id="workerCount">0</span> · ⚔️ <span id="armyCount">0</span></div>
+    <div style="font-size:11px;color:#ffaa55">👨‍🌾 <span id="workerCount">0</span> · ⚔️ <span id="armyCount">0</span> · 🛡️ <span id="guardCount">0</span>/2</div>
   </div>
   <div id="stats">🪵 <span id="wood">0</span> · 🍗 <span id="food">0</span> · 🌾 <span id="wheat">0</span> · 🏹 <span id="arrows">10</span></div>
   <div id="toolbar">
@@ -154,15 +159,15 @@ game_html = r"""
   <div id="toast"></div>
   <div id="achPop"><div class="title">🏆 ACHIEVEMENT UNLOCKED</div><div class="name" id="achPopName"></div><div class="desc" id="achPopDesc"></div></div>
   <div id="muteIcon">🔊</div>
-  <div id="saveBtn">💾 Save</div>
-  <div id="achBtn">🏆 Trophy</div>
-  <div id="shopBtn">🏪 Shop</div>
-  <div id="hireBtn">👨‍🌾 Hire</div>
-  <div id="armyBtn">⚔️ Army</div>
+  <button id="saveBtn" class="uiBtn">💾 Save</button>
+  <button id="achBtn" class="uiBtn">🏆 Trophy</button>
+  <button id="shopBtn" class="uiBtn">🏪 Shop</button>
+  <button id="hireBtn" class="uiBtn">👨‍🌾 Hire</button>
+  <button id="armyBtn" class="uiBtn">⚔️ Army</button>
   <div id="saveIndicator">💾 Tersimpan!</div>
   <div id="bedPrompt">🛏️ <b>Tidur?</b><br>Tekan <b style="color:#ffed4a;font-size:22px">E</b> untuk tidur</div>
   <div id="fishIndicator">🎣 <span id="fishStatus">Menunggu...</span><div id="fishBar"><div class="fill" id="fishBarFill"></div></div><div style="font-size:11px;color:#888;margin-top:6px" id="fishHint"></div></div>
-  <div id="hint">WASD = jalan • Klik = action • 1-9 = tool<br>E = interaksi • B = toko • H = hire worker • R = rekrut prajurit</div>
+  <div id="hint">WASD = jalan • Klik = action • 1-9 = tool<br>E = interaksi • B = shop • H = hire • R = army • G = guard</div>
 </div>
 
 <script>
@@ -241,6 +246,7 @@ function sfxHire() { playTone(440,0.1,'triangle',1); playTone(660,0.12,'triangle
 function sfxRecruit() { playTone(300,0.12,'sawtooth',1); playTone(400,0.12,'sawtooth',1,0.1); playTone(600,0.2,'sawtooth',1,0.2); playNoise(0.15,0.5,1500); }
 function sfxCoin() { playTone(1319,0.05,'square',0.9); playTone(1760,0.08,'square',0.7,0.04); }
 function sfxSword() { playNoise(0.1,1.2,2500); playTone(500,0.08,'triangle',0.9); playTone(250,0.15,'triangle',0.8,0.05); }
+function sfxArmor() { playNoise(0.08,0.8,1800); playTone(300,0.1,'square',0.6); playTone(200,0.1,'square',0.5,0.05); }
 
 const scales = {
   dawn: [261.63, 293.66, 329.63, 392, 440, 523.25],
@@ -314,39 +320,38 @@ const CROP_TYPES = {
   tomato: { name:'Tomat',  emoji:'🍅', price:40, seedPrice:25, growTime:800, color:'#ff4444' },
 };
 
-// ==== WORKER & ARMY TYPES ====
-const WORKER_TYPES = {
-  farmer: {
-    name: 'Petani', emoji: '👨‍🌾', cost: 100, salary: 5,
-    desc: 'Auto cangkul, tanam, siram, panen gandum',
-    color: '#8b6f47', shirt: '#5a8a3a',
-    speed: 0.6, actionDelay: 1.5,
-  },
-};
+// ==== WORKER LIMITS ====
+const WORKER_MAX_FARMLAND = 6; // 1 petani max 6 blok farm
 
+// ==== ARMY TYPES (with ARMOR values) ====
 const ARMY_TYPES = {
   swordsman: {
     name: 'Swordsman', emoji: '⚔️', cost: 150,
-    desc: 'Melee fighter, HP 50, DMG 15',
+    desc: 'Melee fighter HP 60, DMG 15, Armor 2',
     color: '#8b3a3a', shirt: '#c0392b',
-    hp: 50, hpMax: 50, dmg: 15, range: 20, speed: 1.2, attackDelay: 0.8,
-    armor: 0,
+    hp: 60, hpMax: 60, dmg: 15, range: 22, speed: 1.2, attackDelay: 0.8,
+    armor: 2,
+    armorColor: '#b0b0b0', armorStyle: 'chain', // armor ringan abu-abu
   },
   archer: {
     name: 'Archer', emoji: '🏹', cost: 180,
-    desc: 'Ranged fighter, HP 35, DMG 12, jarak jauh',
+    desc: 'Ranged fighter HP 45, DMG 12, Armor 1',
     color: '#3a5a8b', shirt: '#2980b9',
-    hp: 35, hpMax: 35, dmg: 12, range: 120, speed: 1.0, attackDelay: 1.0,
-    armor: 0,
+    hp: 45, hpMax: 45, dmg: 12, range: 130, speed: 1.0, attackDelay: 1.0,
+    armor: 1,
+    armorColor: '#5a3a1a', armorStyle: 'leather', // armor kulit coklat
   },
   knight: {
     name: 'Knight', emoji: '🛡️', cost: 400,
-    desc: 'Tank kuat, HP 120, DMG 25, armor tebal',
+    desc: 'Heavy tank HP 140, DMG 25, Armor 4',
     color: '#5a5a5a', shirt: '#7f8c8d',
-    hp: 120, hpMax: 120, dmg: 25, range: 22, speed: 0.8, attackDelay: 0.6,
-    armor: 3,
+    hp: 140, hpMax: 140, dmg: 25, range: 24, speed: 0.8, attackDelay: 0.6,
+    armor: 4,
+    armorColor: '#c0c0c0', armorStyle: 'plate', // armor plate silver
   },
 };
+
+const MAX_GUARDS = 2; // max 2 army bisa mendampingi player
 
 // ============================================
 // ==== STATE ====
@@ -360,7 +365,7 @@ const player = {
 };
 const time = { totalMinutes: 6*60, day: 1, minutesPerSecond: 3 };
 const inventory = { wheat:0, corn:0, tomato:0, wood:0, food:0, seeds:5, seeds_corn:0, seeds_tomato:0, arrows:10, pelt:0, fish:0 };
-let gameGold = 500; // Modal awal buat hire
+let gameGold = 500;
 let currentSeed = 'wheat';
 let currentTool = null;
 let showInventory = false;
@@ -372,9 +377,9 @@ let animals = [];
 let wolves = [];
 let arrows = [];
 let npcs = [];
-let workers = []; // Petani NPC
-let army = [];    // Prajurit medieval
-let projectiles = []; // Arrow dari archer
+let workers = [];
+let army = [];
+let projectiles = [];
 let currentInterior = null;
 let doorCooldown = 0;
 let nearDoor = false;
@@ -425,7 +430,23 @@ const skyColors = {
   evening:'rgba(255,120,80,0.2)', night:'rgba(20,20,60,0.55)',
 };
 function getActiveWorld() { return currentInterior ? currentInterior.world : world; }
-function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+// ==== COUNT FARM LAND ====
+function countFarmlandTiles() {
+  let count = 0;
+  for (const key in crops) {
+    const [tx, ty] = key.split(',').map(Number);
+    if (!world[ty]) continue;
+    const t = world[ty][tx];
+    if (t === T_FARMLAND || t === T_CROP) count++;
+  }
+  return count;
+}
+// Hitung farmland per petani (yang udah punya worker assigned)
+// Simpel: 1 petani = max 6 farmland. Kalau farmland > worker*6, surplus idle
+function getWorkerFarmlandLimit() {
+  return workers.length * WORKER_MAX_FARMLAND;
+}
 
 // ============================================
 // ==== UI ====
@@ -486,18 +507,16 @@ function generateWorld() {
   drawHouse(17, 9);
   drawHouse(30, 9);
 
-  // SHOP
   world[15][25] = T_SHOP;
   world[15][24] = T_PATH;
   world[15][26] = T_PATH;
   world[16][25] = T_PATH;
 
-  // CAMP prajurit (area bawah)
+  // Camp prajurit
   world[22][8] = T_CAMP;
   world[22][9] = T_CAMP;
   world[23][8] = T_CAMP;
   world[23][9] = T_CAMP;
-  // Clear sekitar camp
   for (let y=21; y<25; y++)
     for (let x=7; x<12; x++)
       if (world[y] && [T_TREE, T_WATER, T_LAMP].includes(world[y][x])) world[y][x] = T_GRASS;
@@ -557,10 +576,10 @@ const achievements = {
   trader:         { emoji:'🏪', name:'Pedagang', desc:'Beli 5 item dari toko', unlocked: false },
   sleeper:        { emoji:'🛏️', name:'Tukang Tidur', desc:'Tidur 5 kali', unlocked: false },
   fisher_master:  { emoji:'🐟', name:'Master Mancing', desc:'Tangkap 20 ikan', unlocked: false },
-  // Achievement baru
   boss:           { emoji:'👨‍💼', name:'Bos Besar', desc:'Punya 5 petani', unlocked: false },
   general:        { emoji:'⚔️', name:'Jenderal', desc:'Punya 5 prajurit', unlocked: false },
   army_full:      { emoji:'🏰', name:'Benteng Berjalan', desc:'Punya 10 prajurit', unlocked: false },
+  guardian:       { emoji:'🛡️', name:'Pelindung', desc:'2 army mendampingi', unlocked: false },
 };
 const stats = {
   harvestCount: 0, fishCaught: 0, animalsKilled: 0, wolvesKilled: 0,
@@ -598,6 +617,8 @@ function checkAchievements() {
   if (!achievements.boss.unlocked && workers.length >= 5) unlockAchievement('boss');
   if (!achievements.general.unlocked && army.length >= 5) unlockAchievement('general');
   if (!achievements.army_full.unlocked && army.length >= 10) unlockAchievement('army_full');
+  const guardCount = army.filter(s => s.guard).length;
+  if (!achievements.guardian.unlocked && guardCount >= 2) unlockAchievement('guardian');
 }
 
 // ============================================
@@ -612,7 +633,7 @@ const ANIMAL_TYPES = {
 function initNPCs() {
   npcs = [
     { x: 8*TILE, y: 15*TILE, dir:'down', color:'#ff6b6b', name:'Budi',
-      dialog:'Hire petani (tekan H) atau rekrut prajurit (tekan R)!',
+      dialog:'Hire petani (H) atau rekrut prajurit (R)!',
       targetX: 8, targetY: 15, moveTimer: 3, speed: 0.3, animTimer:0, walkFrame:0, isMoving:false, pausing:false, pauseTimer:0 },
     { x: 19*TILE, y: 15*TILE, dir:'left', color:'#4ecdc4', name:'Sari',
       dialog:'Prajurit bakal lindungin ladang dari serigala!',
@@ -681,35 +702,32 @@ function getWolfAt(tx, ty) {
 // ==== WORKER (PETANI) ====
 // ============================================
 function hireWorker() {
-  const wt = WORKER_TYPES.farmer;
-  if (gameGold < wt.cost) {
+  if (gameGold < 100) {
     sfxError();
-    showToast(`❌ Butuh ${wt.cost} gold!`, '#ff4444');
+    showToast(`❌ Butuh 100 gold!`, '#ff4444');
     return false;
   }
-  gameGold -= wt.cost;
-  // Spawn worker di dekat player
+  gameGold -= 100;
   let wx = player.x + (Math.random()-0.5)*60;
   let wy = player.y + (Math.random()-0.5)*60;
   workers.push({
     x: wx, y: wy,
     w: 10, h: 14,
-    name: `${wt.name} #${workers.length+1}`,
-    color: wt.color, shirt: wt.shirt,
-    speed: wt.speed,
-    actionDelay: wt.actionDelay,
+    name: `Petani #${workers.length+1}`,
+    color: '#8b6f47', shirt: '#5a8a3a',
+    speed: 0.6,
+    actionDelay: 1.5,
     actionTimer: 0,
     dir: 'down',
     animTimer: 0, walkFrame: 0,
-    state: 'idle', // idle | goto_farm | hoe | plant | water | harvest
+    state: 'idle',
     targetTile: null,
-    salary: wt.salary,
-    salaryTimer: 60, // bayar tiap 60 detik
-    carrying: 0, // jumlah hasil panen yg belum disetor
+    salary: 5,
+    salaryTimer: 60,
   });
   stats.workersHired++;
   sfxHire();
-  showToast(`👨‍🌾 Petani di-hire! (-${wt.cost}g)`, '#5aff5a');
+  showToast(`👨‍🌾 Petani di-hire! (-100g) Max farm: ${workers.length*WORKER_MAX_FARMLAND} tile`, '#5aff5a');
   updateHUD();
   checkAchievements();
   return true;
@@ -726,7 +744,7 @@ function fireWorker(index) {
 
 function updateWorkers(dt) {
   workers.forEach(w => {
-    // Salary timer
+    // Salary
     w.salaryTimer -= dt;
     if (w.salaryTimer <= 0) {
       w.salaryTimer = 60;
@@ -742,15 +760,12 @@ function updateWorkers(dt) {
 
     w.actionTimer -= dt;
 
-    // State machine
     if (w.state === 'idle' || !w.targetTile) {
-      // Cari tugas
       const task = findFarmTask(w);
       if (task) {
         w.targetTile = task.tile;
         w.state = task.type;
       } else {
-        // Nggak ada tugas, wander dikit
         if (Math.random() < 0.01) {
           w.dir = ['up','down','left','right'][Math.floor(Math.random()*4)];
         }
@@ -758,20 +773,17 @@ function updateWorkers(dt) {
       }
     }
 
-    // Jalan ke target
     if (w.targetTile) {
       const tx = w.targetTile.x * TILE + 3;
       const ty = w.targetTile.y * TILE + 3;
       const d = Math.hypot(tx - w.x, ty - w.y);
 
       if (d < 6) {
-        // Udah nyampe, kerjakan
         if (w.actionTimer <= 0) {
           doWorkerAction(w);
           w.actionTimer = w.actionDelay;
         }
       } else {
-        // Jalan ke target
         const dx = (tx - w.x) / d * w.speed;
         const dy = (ty - w.y) / d * w.speed;
         if (canMoveTo(w.x + dx, w.y, 10, 14, world)) w.x += dx;
@@ -786,6 +798,9 @@ function updateWorkers(dt) {
 }
 
 function findFarmTask(w) {
+  const farmlandCount = countFarmlandTiles();
+  const limit = getWorkerFarmlandLimit();
+
   // Prioritas: harvest > water > plant > hoe
   const tasks = [];
   for (const key in crops) {
@@ -799,13 +814,12 @@ function findFarmTask(w) {
     } else if (t === T_CROP && !c.watered && c.stage < 3) {
       tasks.push({ type: 'water', tile: {x:tx, y:ty}, priority: 2 });
     } else if (t === T_FARMLAND && (!c || c.stage === -1)) {
-      // Cek inventory benih
       if (inventory.seeds > 0) tasks.push({ type: 'plant', tile: {x:tx, y:ty}, priority: 3 });
     }
   }
 
-  // Cari rumput buat dicangkul (max 5 tile dari worker)
-  if (tasks.length === 0) {
+  // Cangkul HANYA kalau farmland < limit (per-worker max 6)
+  if (tasks.length === 0 && farmlandCount < limit) {
     const wtx = Math.floor(w.x / TILE);
     const wty = Math.floor(w.y / TILE);
     for (let r = 1; r <= 5; r++) {
@@ -815,7 +829,6 @@ function findFarmTask(w) {
           const tx = wtx + dx, ty = wty + dy;
           if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) continue;
           if (world[ty][tx] === T_GRASS || world[ty][tx] === T_FLOWER) {
-            // Cek area sekitar udah ada farmland? Kalau iya, cangkul di sini
             let nearbyFarmland = false;
             for (let sy = -2; sy <= 2 && !nearbyFarmland; sy++) {
               for (let sx = -2; sx <= 2; sx++) {
@@ -827,7 +840,8 @@ function findFarmTask(w) {
                 }
               }
             }
-            if (nearbyFarmland) {
+            // Di spawn awal (belum ada farmland), cangkul di area luas
+            if (nearbyFarmland || farmlandCount === 0) {
               tasks.push({ type: 'hoe', tile: {x:tx, y:ty}, priority: 4 });
             }
           }
@@ -852,10 +866,9 @@ function doWorkerAction(w) {
     if (t === T_GRASS || t === T_FLOWER) {
       world[ty][tx] = T_FARMLAND;
       crops[key] = { stage: -1 };
-      sfxHoe(); // SFX diputar
+      sfxHoe();
     }
     w.targetTile = null; w.state = 'idle';
-
   } else if (w.state === 'plant') {
     if (t === T_FARMLAND && inventory.seeds > 0) {
       inventory.seeds--;
@@ -864,14 +877,12 @@ function doWorkerAction(w) {
       sfxSeed();
     }
     w.targetTile = null; w.state = 'idle';
-
   } else if (w.state === 'water') {
     if (t === T_CROP && crops[key] && !crops[key].watered && crops[key].stage < 3) {
       crops[key].watered = true;
       sfxWater();
     }
     w.targetTile = null; w.state = 'idle';
-
   } else if (w.state === 'harvest') {
     if (t === T_CROP && crops[key] && crops[key].stage >= 3) {
       const cropType = crops[key].type || 'wheat';
@@ -899,25 +910,28 @@ function recruitSoldier(type) {
     return false;
   }
   gameGold -= at.cost;
-  // Spawn di camp
   const campX = 8.5 * TILE, campY = 22.5 * TILE;
   army.push({
     x: campX + (Math.random()-0.5)*40,
     y: campY + (Math.random()-0.5)*40,
     w: 10, h: 14,
     type: type,
-    name: at.name,
+    name: `${at.name} #${army.length+1}`,
     color: at.color, shirt: at.shirt,
     hp: at.hp, hpMax: at.hpMax,
     dmg: at.dmg, range: at.range, speed: at.speed,
     attackDelay: at.attackDelay, attackTimer: 0,
     armor: at.armor,
+    armorColor: at.armorColor,
+    armorStyle: at.armorStyle,
+    hurtFlash: 0,
     dir: 'down',
     animTimer: 0, walkFrame: 0,
-    state: 'patrol', // patrol | chase | attack
-    target: null, // enemy wolf
+    state: 'patrol',
+    target: null,
     patrolTarget: { x: campX, y: campY },
-    patrolTimer: 0,
+    patrolTimer: Math.random() * 3,
+    guard: false,
   });
   stats.soldiersRecruited++;
   sfxRecruit();
@@ -935,10 +949,28 @@ function dismissSoldier(index) {
   updateHUD();
   renderArmyPanel();
 }
+function toggleGuard(index) {
+  if (index < 0 || index >= army.length) return;
+  const s = army[index];
+  const currentGuards = army.filter(x => x.guard).length;
+  if (!s.guard && currentGuards >= MAX_GUARDS) {
+    sfxError();
+    showToast(`❌ Max ${MAX_GUARDS} prajurit mendampingi!`, '#ff4444');
+    return;
+  }
+  s.guard = !s.guard;
+  sfxClick();
+  showToast(s.guard ? `🛡️ ${s.name} mendampingi kamu!` : `${s.name} kembali patroli`, s.guard ? '#ffd700' : '#888');
+  updateHUD();
+  renderArmyPanel();
+  checkAchievements();
+}
 
 function updateArmy(dt) {
   army.forEach(s => {
-    // Cari musuh terdekat (wolf)
+    if (s.hurtFlash > 0) s.hurtFlash--;
+
+    // Cari wolf terdekat dalam radius
     let nearestWolf = null;
     let nearestDist = 99999;
     wolves.forEach(w => {
@@ -951,63 +983,46 @@ function updateArmy(dt) {
 
     s.attackTimer -= dt;
 
-    if (nearestWolf) {
-      // Chase & attack
-      s.target = nearestWolf;
-      const d = Math.hypot(nearestWolf.x - s.x, nearestWolf.y - s.y);
-
-      if (d <= s.range) {
-        // Attack!
-        s.state = 'attack';
-        if (s.attackTimer <= 0) {
-          s.attackTimer = s.attackDelay;
-          if (s.type === 'archer') {
-            // Archer: spawn projectile
-            const dx = (nearestWolf.x - s.x) / d;
-            const dy = (nearestWolf.y - s.y) / d;
-            projectiles.push({
-              x: s.x + 5, y: s.y + 5,
-              vx: dx * 8, vy: dy * 8,
-              life: 60, dmg: s.dmg,
-              owner: 'army',
-            });
-            sfxBowShoot();
-          } else {
-            // Melee: langsung hit
-            nearestWolf.hp -= s.dmg;
-            nearestWolf.hurtFlash = 10;
-            sfxSword();
-            if (nearestWolf.hp <= 0) {
-              wolves = wolves.filter(wl => wl !== nearestWolf);
-              inventory.pelt += 1;
-              stats.wolvesKilled++;
-              showToast(`⚔️ ${s.name} bunuh wolf! +1 pelt`, '#ff6666');
-              updateHUD(); checkAchievements();
-            }
-          }
-        }
+    // ==== GUARD MODE: ikutin player ====
+    if (s.guard) {
+      // Kalau ada musuh dekat player, chase wolf
+      if (nearestWolf && nearestDist < 150) {
+        chaseAndAttack(s, nearestWolf, dt);
       } else {
-        // Chase
-        s.state = 'chase';
-        const dx = (nearestWolf.x - s.x) / d * s.speed;
-        const dy = (nearestWolf.y - s.y) / d * s.speed;
-        if (canMoveTo(s.x + dx, s.y, 10, 14, world)) s.x += dx;
-        if (canMoveTo(s.x, s.y + dy, 10, 14, world)) s.y += dy;
-        if (Math.abs(dx) > Math.abs(dy)) s.dir = dx > 0 ? 'right' : 'left';
-        else s.dir = dy > 0 ? 'down' : 'up';
-        s.animTimer++;
-        if (s.animTimer > 8) { s.animTimer = 0; s.walkFrame = (s.walkFrame + 1) % 4; }
+        // Follow player, jaga jarak 30-40px
+        const dxp = player.x - s.x;
+        const dyp = player.y - s.y;
+        const distP = Math.hypot(dxp, dyp);
+        if (distP > 45) {
+          const dx = dxp / distP * s.speed * 1.2;
+          const dy = dyp / distP * s.speed * 1.2;
+          if (canMoveTo(s.x + dx, s.y, 10, 14, world)) s.x += dx;
+          if (canMoveTo(s.x, s.y + dy, 10, 14, world)) s.y += dy;
+          if (Math.abs(dx) > Math.abs(dy)) s.dir = dx > 0 ? 'right' : 'left';
+          else s.dir = dy > 0 ? 'down' : 'up';
+          s.animTimer++;
+          if (s.animTimer > 8) { s.animTimer = 0; s.walkFrame = (s.walkFrame + 1) % 4; }
+        } else {
+          s.walkFrame = 0;
+        }
+        s.state = 'guard';
       }
+      return;
+    }
+
+    // ==== PATROL / CHASE MODE ====
+    if (nearestWolf) {
+      chaseAndAttack(s, nearestWolf, dt);
     } else {
-      // Patrol di sekitar camp
+      // Wander around camp
       s.state = 'patrol';
       s.target = null;
       s.patrolTimer -= dt;
       if (s.patrolTimer <= 0) {
         s.patrolTimer = 3 + Math.random() * 4;
         s.patrolTarget = {
-          x: (8.5 + (Math.random()-0.5)*6) * TILE,
-          y: (22.5 + (Math.random()-0.5)*6) * TILE,
+          x: (8.5 + (Math.random()-0.5)*8) * TILE,
+          y: (22.5 + (Math.random()-0.5)*8) * TILE,
         };
       }
       const dx = s.patrolTarget.x - s.x;
@@ -1027,22 +1042,67 @@ function updateArmy(dt) {
   });
 }
 
+function chaseAndAttack(s, wolf, dt) {
+  const d = Math.hypot(wolf.x - s.x, wolf.y - s.y);
+  s.target = wolf;
+
+  if (d <= s.range) {
+    s.state = 'attack';
+    if (s.attackTimer <= 0) {
+      s.attackTimer = s.attackDelay;
+      if (s.type === 'archer') {
+        const dx = (wolf.x - s.x) / (d || 1);
+        const dy = (wolf.y - s.y) / (d || 1);
+        projectiles.push({
+          x: s.x + 5, y: s.y + 5,
+          vx: dx * 8, vy: dy * 8,
+          life: 60, dmg: s.dmg,
+        });
+        sfxBowShoot();
+      } else {
+        wolf.hp -= s.dmg;
+        wolf.hurtFlash = 10;
+        sfxSword();
+        if (wolf.hp <= 0) {
+          wolves = wolves.filter(wl => wl !== wolf);
+          inventory.pelt += 1;
+          stats.wolvesKilled++;
+          showToast(`⚔️ ${s.name} bunuh wolf! +1 pelt`, '#ff6666');
+          updateHUD(); checkAchievements();
+        }
+      }
+    }
+  } else {
+    s.state = 'chase';
+    const dx = (wolf.x - s.x) / d * s.speed;
+    const dy = (wolf.y - s.y) / d * s.speed;
+    if (canMoveTo(s.x + dx, s.y, 10, 14, world)) s.x += dx;
+    if (canMoveTo(s.x, s.y + dy, 10, 14, world)) s.y += dy;
+    if (Math.abs(dx) > Math.abs(dy)) s.dir = dx > 0 ? 'right' : 'left';
+    else s.dir = dy > 0 ? 'down' : 'up';
+    s.animTimer++;
+    if (s.animTimer > 8) { s.animTimer = 0; s.walkFrame = (s.walkFrame + 1) % 4; }
+  }
+}
+
 // ============================================
 // ==== PANELS ====
 // ============================================
 function renderHirePanel() {
   const c = document.getElementById('hireContent');
   if (!c) return;
-  const wt = WORKER_TYPES.farmer;
-  const canAfford = gameGold >= wt.cost;
+  const canAfford = gameGold >= 100;
+  const currentFarmland = countFarmlandTiles();
+  const limit = getWorkerFarmlandLimit();
   let html = `
     <div class="shopItem">
       <div class="info">
-        <div class="emoji">${wt.emoji}</div>
+        <div class="emoji">👨‍🌾</div>
         <div>
-          <div class="name">${wt.name}</div>
-          <div class="price">🪙 ${wt.cost} gold (upah ${wt.salary}g/menit)</div>
-          <div class="desc">${wt.desc}</div>
+          <div class="name">Petani</div>
+          <div class="price">🪙 100 gold (upah 5g/menit)</div>
+          <div class="desc">Auto cangkul/tanam/siram/panen · Max 6 blok per petani</div>
+          <div class="slotInfo">Farmland sekarang: ${currentFarmland} / ${limit} tile</div>
         </div>
       </div>
       <button class="hireBtn" ${canAfford ? '' : 'disabled'}>Hire</button>
@@ -1068,7 +1128,6 @@ function renderHirePanel() {
     });
   }
   c.innerHTML = html;
-  
   c.querySelectorAll('button[data-fire-worker]').forEach(btn => {
     btn.onclick = () => fireWorker(parseInt(btn.dataset.fireWorker));
   });
@@ -1079,7 +1138,8 @@ function renderHirePanel() {
 function renderArmyPanel() {
   const c = document.getElementById('armyContent');
   if (!c) return;
-  let html = '';
+  const currentGuards = army.filter(s => s.guard).length;
+  let html = `<div style="color:#ffaa55;font-size:12px;margin-bottom:12px;text-align:center">🛡️ Prajurit pengawal: ${currentGuards}/${MAX_GUARDS} (tekan tombol 🛡️ buat set guard)</div>`;
   Object.entries(ARMY_TYPES).forEach(([key, at]) => {
     const canAfford = gameGold >= at.cost;
     html += `
@@ -1101,19 +1161,24 @@ function renderArmyPanel() {
     army.forEach((s, i) => {
       let statusText = 'Berpatroli';
       let statusClass = 'idle';
-      if (s.state === 'chase') { statusText = 'Mengejar musuh!'; statusClass = 'fighting'; }
+      if (s.guard) { statusText = '🛡️ Mendampingi kamu'; statusClass = 'guard'; }
+      else if (s.state === 'chase') { statusText = 'Mengejar musuh!'; statusClass = 'fighting'; }
       else if (s.state === 'attack') { statusText = 'Bertarung!'; statusClass = 'fighting'; }
+      const isGuard = s.guard ? 'guard' : '';
       html += `
-        <div class="unitRow">
+        <div class="unitRow ${isGuard}">
           <div class="info">
             <div class="emoji">${ARMY_TYPES[s.type].emoji}</div>
             <div>
-              <div class="name">${s.name} #${i+1}</div>
+              <div class="name">${s.name}</div>
               <div class="status ${statusClass}">${statusText}</div>
-              <div class="status">❤️ ${Math.round(s.hp)}/${s.hpMax} · ⚔️ ${s.dmg}</div>
+              <div class="status">❤️ ${Math.round(s.hp)}/${s.hpMax} · ⚔️ ${s.dmg} · 🛡️ ${s.armor}</div>
             </div>
           </div>
-          <button data-dismiss-army="${i}">Bubarkan</button>
+          <div>
+            <button class="guardBtn ${s.guard ? 'active' : ''}" data-guard-army="${i}">🛡️</button>
+            <button data-dismiss-army="${i}">Bubarkan</button>
+          </div>
         </div>
       `;
     });
@@ -1125,18 +1190,25 @@ function renderArmyPanel() {
   c.querySelectorAll('button[data-dismiss-army]').forEach(btn => {
     btn.onclick = () => dismissSoldier(parseInt(btn.dataset.dismissArmy));
   });
+  c.querySelectorAll('button[data-guard-army]').forEach(btn => {
+    btn.onclick = () => toggleGuard(parseInt(btn.dataset.guardArmy));
+  });
 }
 
+function closeAllPanels() {
+  ['shop','inv','achPanel','armyPanel','hirePanel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  showInventory = false;
+}
 function toggleHirePanel() {
   const p = document.getElementById('hirePanel');
   if (!p) return;
   if (p.style.display === 'block') p.style.display = 'none';
   else {
     ensureAudio();
-    ['shop','inv','achPanel','armyPanel'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
+    closeAllPanels();
     p.style.display = 'block';
     renderHirePanel();
     sfxClick();
@@ -1148,10 +1220,7 @@ function toggleArmyPanel() {
   if (p.style.display === 'block') p.style.display = 'none';
   else {
     ensureAudio();
-    ['shop','inv','achPanel','hirePanel'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
+    closeAllPanels();
     p.style.display = 'block';
     renderArmyPanel();
     sfxClick();
@@ -1320,10 +1389,7 @@ function toggleShop() {
   if (shop.style.display === 'block') shop.style.display = 'none';
   else {
     ensureAudio();
-    ['inv','hirePanel','armyPanel','achPanel'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
+    closeAllPanels();
     shop.style.display = 'block';
     renderShop(); sfxClick();
   }
@@ -1350,10 +1416,7 @@ function toggleAch() {
   if (!p) return;
   if (p.style.display === 'block') p.style.display = 'none';
   else {
-    ['shop','inv','hirePanel','armyPanel'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
+    closeAllPanels();
     renderAchPanel(); p.style.display = 'block'; sfxClick();
   }
 }
@@ -1368,7 +1431,7 @@ function saveGame() {
     time: { totalMinutes: time.totalMinutes, day: time.day },
     animals: animals.filter(a => !a.dead),
     workers: workers.map(w => ({ x:w.x, y:w.y, name:w.name, salary:w.salary, state:w.state })),
-    army: army.map(s => ({ x:s.x, y:s.y, type:s.type, hp:s.hp, name:s.name })),
+    army: army.map(s => ({ x:s.x, y:s.y, type:s.type, hp:s.hp, name:s.name, guard: s.guard })),
     achievements: Object.fromEntries(Object.entries(achievements).map(([k,a]) => [k, a.unlocked])),
     stats: { ...stats, cropsPlanted: [...stats.cropsPlanted] },
   };
@@ -1397,7 +1460,6 @@ function loadGame() {
     animals = (data.animals || []).map(a => ({
       ...a, vx:0, vy:0, hurtFlash:0, dead:false, animTimer:0, walkFrame:0, pauseTimer:0, wanderTimer:0, wanderAngle:0
     }));
-    // Restore workers
     workers = [];
     if (data.workers) {
       data.workers.forEach(w => {
@@ -1408,11 +1470,10 @@ function loadGame() {
           speed: 0.6, actionDelay: 1.5, actionTimer: 0,
           dir: 'down', animTimer: 0, walkFrame: 0,
           state: 'idle', targetTile: null, salary: w.salary || 5,
-          salaryTimer: 60, carrying: 0,
+          salaryTimer: 60,
         });
       });
     }
-    // Restore army
     army = [];
     if (data.army) {
       data.army.forEach(a => {
@@ -1426,9 +1487,13 @@ function loadGame() {
           dmg: at.dmg, range: at.range, speed: at.speed,
           attackDelay: at.attackDelay, attackTimer: 0,
           armor: at.armor,
+          armorColor: at.armorColor,
+          armorStyle: at.armorStyle,
+          hurtFlash: 0,
           dir: 'down', animTimer: 0, walkFrame: 0,
           state: 'patrol', target: null,
-          patrolTarget: { x: 8.5*TILE, y: 22.5*TILE }, patrolTimer: 0,
+          patrolTarget: { x: 8.5*TILE, y: 22.5*TILE }, patrolTimer: Math.random()*3,
+          guard: !!a.guard,
         });
       });
     }
@@ -1682,7 +1747,15 @@ function applyTool(tx, ty) {
   }
   if (!currentTool) return;
   if (currentTool === 'hoe') {
+    // Cek limit farmland
     if (t === T_GRASS || t === T_FLOWER) {
+      const farmlandCount = countFarmlandTiles();
+      const limit = getWorkerFarmlandLimit();
+      if (workers.length > 0 && farmlandCount >= limit) {
+        sfxError();
+        showToast(`❌ Max ${limit} tile (${workers.length} petani × 6). Hire petani lagi!`, '#ff4444');
+        return;
+      }
       world[ty][tx] = T_FARMLAND; crops[key] = { stage: -1 };
       sfxHoe(); showToast('🪓 Dicangkul!', '#a07040');
     } else sfxError();
@@ -1797,13 +1870,10 @@ function toggleInventory() {
   const inv = document.getElementById('inv');
   if (!inv) return;
   if (showInventory) {
-    ['shop','hirePanel','armyPanel','achPanel'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
+    closeAllPanels();
     renderInventory(); inv.style.display = 'block'; sfxClick();
-  }
-  else inv.style.display = 'none';
+    showInventory = true;
+  } else inv.style.display = 'none';
 }
 function useItem(key) {
   ensureAudio();
@@ -1858,13 +1928,17 @@ document.addEventListener('keydown', e => {
   if (k === 'b') { ensureAudio(); toggleShop(); }
   if (k === 'h') { ensureAudio(); toggleHirePanel(); }
   if (k === 'r') { ensureAudio(); toggleArmyPanel(); }
+  if (k === 'g') {
+    // Quick set first non-guard soldier as guard
+    ensureAudio();
+    const available = army.findIndex(s => !s.guard);
+    if (available >= 0) { toggleGuard(available); }
+    else if (army.length > 0) { toggleGuard(0); } // toggle off first guard
+    else showToast('❌ Belum ada prajurit', '#ff4444');
+  }
   if (k === 'e') { ensureAudio(); doInteractE(); }
   if (k === 'escape') {
-    ['inv','shop','achPanel','hirePanel','armyPanel'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
-    showInventory = false;
+    closeAllPanels();
   }
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key)) e.preventDefault();
 });
@@ -2104,7 +2178,7 @@ function update() {
 
   if (!currentInterior) {
     wolves.forEach(w => {
-      // Cari target: prajurit atau player
+      // Cari target terdekat: prajurit dulu, terus player
       let target = player;
       let nearestDist = Math.hypot(player.x - w.x, player.y - w.y);
       army.forEach(s => {
@@ -2124,24 +2198,23 @@ function update() {
           w.attackTimer -= dt;
           if (w.attackTimer <= 0) {
             w.attackTimer = 1.5;
-            // Damage target
             if (target === player) {
               player.hp = Math.max(0, player.hp - 6);
               flashDamage(); sfxWolfBite();
               showToast('🐺 Wolf attack! -6 HP', '#ff6666');
             } else {
-              // Serang prajurit
-              const actualDmg = Math.max(1, 8 - (target.armor || 0));
+              // Serang prajurit — armor reduce damage!
+              const rawDmg = 8;
+              const actualDmg = Math.max(1, rawDmg - (target.armor || 0));
               target.hp -= actualDmg;
               target.hurtFlash = 10;
-              sfxWolfBite();
+              sfxArmor();
               if (target.hp <= 0) {
-                // Prajurit tewas
                 const idx = army.indexOf(target);
                 if (idx >= 0) {
                   army.splice(idx, 1);
                   showToast(`💀 ${target.name} gugur!`, '#ff4444');
-                  renderArmyPanel();
+                  if (document.getElementById('armyPanel').style.display === 'block') renderArmyPanel();
                 }
               }
             }
@@ -2200,7 +2273,7 @@ function update() {
     });
     arrows = arrows.filter(a => a.life > 0 && a.x > 0 && a.x < WORLD_W*TILE && a.y > 0 && a.y < WORLD_H*TILE);
 
-    // Army projectiles (archer arrows)
+    // Army projectiles
     projectiles.forEach(p => {
       p.x += p.vx; p.y += p.vy; p.life--;
       for (const w of wolves) {
@@ -2287,6 +2360,7 @@ function updateHUD() {
   const ar = document.getElementById('arrows');
   const wc = document.getElementById('workerCount');
   const ac = document.getElementById('armyCount');
+  const gc = document.getElementById('guardCount');
   if (g) g.textContent = gameGold;
   if (w) w.textContent = inventory.wood;
   if (f) f.textContent = inventory.food;
@@ -2294,6 +2368,7 @@ function updateHUD() {
   if (ar) ar.textContent = inventory.arrows;
   if (wc) wc.textContent = workers.length;
   if (ac) ac.textContent = army.length;
+  if (gc) gc.textContent = army.filter(s => s.guard).length;
   if (gameGold > stats.maxGold) stats.maxGold = gameGold;
   checkAchievements();
 }
@@ -2404,7 +2479,6 @@ function drawTile(t, x, y) {
   } else if (t === T_CAMP) {
     artPx(wx, wy, TILE, TILE, '#8b6f47');
     artPx(wx+1, wy+1, TILE-2, TILE-2, '#6b4f27');
-    // Tenda
     artPx(wx+2, wy+4, 12, 10, '#8b3a3a');
     artPx(wx+4, wy+2, 8, 4, '#c0392b');
     artPx(wx+7, wy+10, 2, 4, '#3a1a1a');
@@ -2461,12 +2535,73 @@ function drawHumanoid(x, y, dir, walkFrame, color, skin='#ffcc99', shirtColor=nu
   else { artPx(x+3, legY, 2, 5, pants); artPx(x+7, legY, 2, 5, pants); }
   artPx(x+3, legY+4, 2, 1, '#000'); artPx(x+7, legY+4, 2, 1, '#000');
 }
+
+// ==== ARMOR RENDERER ====
+function drawArmor(s, x, y, dir, bob) {
+  // Draw armor di atas body
+  if (s.armorStyle === 'chain') {
+    // Chainmail: pattern abu-abu kotak-kotak
+    const ac = s.armorColor;
+    // Chest
+    artPx(x+3, y+6+bob, 6, 5, ac);
+    // Pattern dots
+    for (let dy = 0; dy < 5; dy += 2) {
+      for (let dx = 0; dx < 6; dx += 2) {
+        artPx(x+3+dx, y+6+bob+dy, 1, 1, '#7a7a7a');
+      }
+    }
+    // Shoulder pads
+    artPx(x+2, y+6+bob, 1, 3, '#8a8a8a');
+    artPx(x+9, y+6+bob, 1, 3, '#8a8a8a');
+    // Helm
+    artPx(x+3, y+1+bob, 6, 3, ac);
+    artPx(x+4, y+3+bob, 1, 1, '#000'); // mata masih kelihatan
+    artPx(x+7, y+3+bob, 1, 1, '#000');
+  } else if (s.armorStyle === 'leather') {
+    // Leather armor coklat
+    const ac = s.armorColor;
+    artPx(x+3, y+6+bob, 6, 5, ac);
+    // Tali/strap
+    artPx(x+4, y+6+bob, 1, 5, '#3a2010');
+    artPx(x+7, y+6+bob, 1, 5, '#3a2010');
+    // Belt
+    artPx(x+2, y+10+bob, 8, 1, '#3a2010');
+    // Hood/hijau
+    artPx(x+2, y-1+bob, 8, 2, '#2a5a2a');
+    artPx(x+3, y+0+bob, 6, 1, '#3a6a3a');
+  } else if (s.armorStyle === 'plate') {
+    // Plate armor silver
+    const ac = s.armorColor;
+    // Body plate
+    artPx(x+2, y+6+bob, 8, 6, ac);
+    // Highlight
+    artPx(x+3, y+7+bob, 6, 1, '#e0e0e0');
+    // Shoulder plate besar
+    artPx(x+1, y+6+bob, 2, 4, ac);
+    artPx(x+9, y+6+bob, 2, 4, ac);
+    artPx(x+1, y+6+bob, 2, 1, '#e0e0e0');
+    artPx(x+9, y+6+bob, 2, 1, '#e0e0e0');
+    // Helm dengan visor
+    artPx(x+3, y+0+bob, 6, 4, ac);
+    artPx(x+4, y+2+bob, 4, 1, '#333'); // visor slit
+    artPx(x+3, y+3+bob, 6, 1, '#a0a0a0');
+  }
+}
+
 function drawWorker(w) {
+  // Shadow
+  ctx.globalAlpha = 0.3;
+  artPx(w.x+2, w.y+15, 8, 2, '#000');
+  ctx.globalAlpha = 1;
+  
+  // Body
   drawHumanoid(w.x, w.y, w.dir, w.walkFrame, w.color, '#e8b088', w.shirt);
-  // Topi petani (straw hat)
+  
+  // Topi petani
   const bob = (w.walkFrame === 1 || w.walkFrame === 3) ? -1 : 0;
   artPx(w.x+1, w.y-1+bob, 10, 1, '#d4a76a');
   artPx(w.x+3, w.y-2+bob, 6, 1, '#b8905a');
+  
   // Icon tool di atas kepala
   if (w.state === 'hoe' || w.state === 'plant' || w.state === 'water' || w.state === 'harvest') {
     ctx.font = '10px monospace';
@@ -2475,19 +2610,97 @@ function drawWorker(w) {
     ctx.fillText(icon, Math.floor((w.x - camera.x)*PX) + 5*PX, Math.floor((w.y - camera.y)*PX) - 4);
   }
 }
+
 function drawSoldier(s) {
-  drawHumanoid(s.x, s.y, s.dir, s.walkFrame, s.color, '#e8b088', s.shirt);
-  // Helm / senjata
-  const bob = (s.walkFrame === 1 || s.walkFrame === 3) ? -1 : 0;
-  if (s.type === 'knight') {
-    // Helm knight
-    artPx(s.x+2, s.y-2+bob, 8, 2, '#aaa');
-    artPx(s.x+3, s.y-3+bob, 6, 1, '#ccc');
-  } else if (s.type === 'archer') {
-    // Topi hijau
-    artPx(s.x+2, s.y-1+bob, 8, 2, '#2a5a2a');
+  // Flash merah kalau kena hit
+  if (s.hurtFlash > 0 && s.hurtFlash % 4 < 2) {
+    ctx.globalAlpha = 0.5;
+    artPx(s.x+2, s.y+15, 8, 2, '#000');
+    // Draw full red rectangle body
+    artPx(s.x+3, s.y, 6, 16, '#ff0000');
+    ctx.globalAlpha = 1;
+    return;
   }
-  // HP bar kecil
+
+  const bob = (s.walkFrame === 1 || s.walkFrame === 3) ? -1 : 0;
+  
+  // Shadow
+  ctx.globalAlpha = 0.3;
+  artPx(s.x+2, s.y+15, 8, 2, '#000');
+  ctx.globalAlpha = 1;
+  
+  // Body (tanpa helm/armor dulu)
+  const skinTone = '#e8b088', shirt = s.shirt, pants = '#3a3a3a', hair = '#3a2010';
+  // Head
+  artPx(s.x+3, s.y+0+bob, 6, 6, skinTone);
+  // Body
+  artPx(s.x+3, s.y+6+bob, 6, 5, shirt);
+  // Arms
+  artPx(s.x+2, s.y+7+bob, 1, 3, skinTone);
+  artPx(s.x+9, s.y+7+bob, 1, 3, skinTone);
+  // Legs
+  const legY = s.y + 11 + bob;
+  if (s.walkFrame === 1) { artPx(s.x+3, legY, 2, 5, pants); artPx(s.x+7, legY+1, 2, 4, pants); }
+  else if (s.walkFrame === 3) { artPx(s.x+3, legY+1, 2, 4, pants); artPx(s.x+7, legY, 2, 5, pants); }
+  else { artPx(s.x+3, legY, 2, 5, pants); artPx(s.x+7, legY, 2, 5, pants); }
+  artPx(s.x+3, legY+4, 2, 1, '#000'); artPx(s.x+7, legY+4, 2, 1, '#000');
+  
+  // === ARMOR ===
+  drawArmor(s, s.x, s.y, s.dir, bob);
+  
+  // === WEAPON ===
+  const wpnBob = bob;
+  if (s.type === 'swordsman') {
+    // Sword di tangan kanan
+    artPx(s.x+10, s.y+6+wpnBob, 1, 8, '#c0c0c0'); // blade
+    artPx(s.x+10, s.y+13+wpnBob, 1, 1, '#ffd700'); // pommel
+    artPx(s.x+9, s.y+13+wpnBob, 3, 1, '#8b4513'); // guard
+  } else if (s.type === 'archer') {
+    // Bow di tangan kiri
+    ctx.strokeStyle = '#8b5a2b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(
+      Math.floor((s.x - camera.x)*PX) + 5*PX,
+      Math.floor((s.y - camera.y)*PX) + 8*PX,
+      5*PX,
+      -Math.PI/2,
+      Math.PI/2
+    );
+    ctx.stroke();
+  } else if (s.type === 'knight') {
+    // Sword besar + shield
+    artPx(s.x+10, s.y+5+wpnBob, 2, 10, '#e0e0e0');
+    artPx(s.x+10, s.y+14+wpnBob, 2, 1, '#ffd700');
+    artPx(s.x+9, s.y+14+wpnBob, 4, 1, '#8b4513');
+    // Shield di kiri
+    artPx(s.x-1, s.y+6+wpnBob, 3, 5, '#8b3a3a');
+    artPx(s.x, s.y+7+wpnBob, 1, 3, '#ffd700');
+  }
+  
+  // Guard indicator (lingkaran emas)
+  if (s.guard) {
+    const pulse = Math.sin(frameCount*0.15) * 0.3 + 0.7;
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = pulse;
+    ctx.beginPath();
+    ctx.arc(
+      Math.floor((s.x - camera.x)*PX) + 5*PX,
+      Math.floor((s.y - camera.y)*PX) + 8*PX,
+      12*PX,
+      0,
+      Math.PI * 2
+    );
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Ikon mahkota di atas
+    ctx.font = '10px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🛡️', Math.floor((s.x - camera.x)*PX) + 5*PX, Math.floor((s.y - camera.y)*PX) - 6);
+  }
+  
+  // HP bar
   if (s.hp < s.hpMax) {
     const hw = 20;
     const hx = Math.floor((s.x - camera.x)*PX) - 5;
