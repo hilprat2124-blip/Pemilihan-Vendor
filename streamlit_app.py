@@ -216,7 +216,6 @@ game_html = r"""
 </head>
 <body>
 <div id="gameWrap">
-  <!-- CANVAS DIPERBESAR KE 960x640 -->
   <canvas id="game" width="960" height="640"></canvas>
   <div id="damageFlash"></div>
   <div id="hud">
@@ -414,7 +413,6 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-// TILE dibesarkan jadi 32 (sebelumnya 16) biar pixel-nya gede!
 const PX = 5, TILE = 32, WORLD_W = 40, WORLD_H = 30;
 
 const T_GRASS=0,T_PATH=1,T_WATER=2,T_TREE=3,T_FARMLAND=4,T_CROP=5,
@@ -507,7 +505,8 @@ function isSolid(tx, ty, w) {
   if (!ww || !ww[ty]) return true;
   if (tx < 0 || ty < 0 || tx >= ww[0].length || ty >= ww.length) return true;
   const t = ww[ty][tx];
-  return [T_WATER,T_TREE,T_HOUSE,T_LAMP,T_SAPLING,T_WALL,T_TABLE,T_BED,T_FENCE].includes(t);
+  // T_FENCE DIHAPUS BIAR BISA DILEWATI
+  return [T_WATER,T_TREE,T_HOUSE,T_LAMP,T_SAPLING,T_WALL,T_TABLE,T_BED].includes(t);
 }
 function canMoveTo(nx, ny, w, h, ww) {
   const wref = ww || world;
@@ -873,6 +872,19 @@ function hireWorkerAtArea(fx, fy) {
   }
   gameGold -= 100;
 
+  // 1. Bersihin tile di DALAM area (paksa jadi rumput biar bisa dicangkul)
+  for (let dy = 0; dy < FARM_AREA_H; dy++) {
+    for (let dx = 0; dx < FARM_AREA_W; dx++) {
+      const tx = fx + dx, ty = fy + dy;
+      if (world[ty] && world[ty][tx] !== undefined) {
+        if (world[ty][tx] !== T_GRASS && world[ty][tx] !== T_FARMLAND && world[ty][tx] !== T_CROP) {
+          world[ty][tx] = T_GRASS; 
+        }
+      }
+    }
+  }
+
+  // 2. Pagar Atas
   for (let dx = -1; dx <= FARM_AREA_W; dx++) {
     const tx = fx + dx, ty = fy - 1;
     if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
@@ -881,14 +893,8 @@ function hireWorkerAtArea(fx, fy) {
       }
     }
   }
-  for (let dx = -1; dx <= FARM_AREA_W; dx++) {
-    const tx = fx + dx, ty = fy + FARM_AREA_H;
-    if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
-      if (world[ty][tx] === T_GRASS || world[ty][tx] === T_FLOWER) {
-        world[ty][tx] = T_FENCE;
-      }
-    }
-  }
+
+  // 3. Pagar Kiri
   for (let dy = 0; dy < FARM_AREA_H; dy++) {
     const tx = fx - 1, ty = fy + dy;
     if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
@@ -897,6 +903,8 @@ function hireWorkerAtArea(fx, fy) {
       }
     }
   }
+
+  // 4. Pagar Kanan
   for (let dy = 0; dy < FARM_AREA_H; dy++) {
     const tx = fx + FARM_AREA_W, ty = fy + dy;
     if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
@@ -905,10 +913,22 @@ function hireWorkerAtArea(fx, fy) {
       }
     }
   }
-  const gateX = fx + Math.floor(FARM_AREA_W / 2);
-  const gateY = fy + FARM_AREA_H;
-  if (world[gateY] && world[gateY][gateX] === T_FENCE) {
-    world[gateY][gateX] = T_GRASS;
+
+  // 5. Pagar Bawah + Gerbang Tengah
+  const gateX = fx + Math.floor(FARM_AREA_W / 2); 
+  for (let dx = -1; dx <= FARM_AREA_W; dx++) {
+    const tx = fx + dx, ty = fy + FARM_AREA_H;
+    if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
+      if (tx !== gateX) {
+        if (world[ty][tx] === T_GRASS || world[ty][tx] === T_FLOWER) {
+          world[ty][tx] = T_FENCE;
+        }
+      } else {
+        if (world[ty][tx] === T_FENCE || world[ty][tx] === T_FLOWER) {
+          world[ty][tx] = T_GRASS; // Buka gerbang
+        }
+      }
+    }
   }
 
   sfxFence();
