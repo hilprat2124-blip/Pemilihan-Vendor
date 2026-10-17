@@ -119,6 +119,7 @@ game_html = r"""
   #muteIcon:hover { transform:scale(1.2); }
   #saveIndicator { position:absolute; top:60px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#5aff5a; padding:6px 14px; border-radius:4px; font-size:12px; border:2px solid #5aff5a; display:none; z-index:150; box-shadow:0 0 15px rgba(90,255,90,0.4); }
   #bedPrompt { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:3px solid #5aff5a; color:#5aff5a; padding:20px 36px; font-size:18px; display:none; text-align:center; border-radius:10px; box-shadow:0 0 40px rgba(90,255,90,0.7); z-index:150; pointer-events:none; animation: bedPulse 1.2s infinite; }
+  #doorPrompt { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:3px solid #4a90e2; color:#4a90e2; padding:16px 28px; font-size:18px; display:none; text-align:center; border-radius:10px; box-shadow:0 0 40px rgba(74,144,226,0.7); z-index:150; pointer-events:none; animation: bedPulse 1.2s infinite; }
   @keyframes bedPulse {
     0%, 100% { transform: translate(-50%,-50%) scale(1); }
     50% { transform: translate(-50%,-50%) scale(1.05); }
@@ -268,6 +269,7 @@ game_html = r"""
   <div id="muteIcon">🔊</div>
   <div id="saveIndicator">💾 Tersimpan!</div>
   <div id="bedPrompt">🛏️ <b>Tidur?</b><br>Tekan <b style="color:#ffed4a;font-size:22px">E</b> untuk tidur</div>
+  <div id="doorPrompt">🚪 <b>Pintu</b><br>Tekan <b style="color:#4a90e2;font-size:22px">E</b> untuk masuk/keluar</div>
   <div id="placementHint">📍 Klik di tanah buat tentukan area farm (3×3)<br><small>ESC buat batal</small></div>
   <div id="fishIndicator">🎣 <span id="fishStatus">Menunggu...</span><div id="fishBar"><div class="fill" id="fishBarFill"></div></div><div style="font-size:11px;color:#888;margin-top:6px" id="fishHint"></div></div>
   <div id="hint">WASD = jalan • Klik = action • 1-9 = tool<br>B = shop • H = hire • R = army • G = guard</div>
@@ -505,7 +507,8 @@ function isSolid(tx, ty, w) {
   if (!ww || !ww[ty]) return true;
   if (tx < 0 || ty < 0 || tx >= ww[0].length || ty >= ww.length) return true;
   const t = ww[ty][tx];
-  // T_FENCE DIHAPUS BIAR BISA DILEWATI
+  // T_FENCE TETAP SOLID KARENA KITA UDAH BIKIN GATE DI AREA FARM
+  // TAPI BUAT PLAYER, KITA KECUALIKAN T_HOUSE_DOOR BIAR BISA MASUK
   return [T_WATER,T_TREE,T_HOUSE,T_LAMP,T_SAPLING,T_WALL,T_TABLE,T_BED].includes(t);
 }
 function canMoveTo(nx, ny, w, h, ww) {
@@ -2205,6 +2208,21 @@ window.addEventListener('keydown', e => {
   if (k === 'e') {
     ensureAudio();
     if (nearBed) sleep();
+    if (nearDoor) {
+      if (!currentInterior) {
+        currentInterior = interiors[0];
+        player.x = currentInterior.playerSpawn.x;
+        player.y = currentInterior.playerSpawn.y;
+        sfxDoor();
+        showToast('🚪 Masuk ke rumah', '#4a90e2');
+      } else {
+        currentInterior = null;
+        player.x = 17.5 * TILE;
+        player.y = 13 * TILE;
+        sfxDoor();
+        showToast('🚪 Keluar rumah', '#4a90e2');
+      }
+    }
   }
   if (k === 'escape') {
     closeAllPanels();
@@ -2277,6 +2295,9 @@ function updatePlayer(dt) {
 
   const bp = document.getElementById('bedPrompt');
   if (bp) bp.style.display = (nearBed && currentInterior) ? 'block' : 'none';
+  
+  const dp = document.getElementById('doorPrompt');
+  if (dp) dp.style.display = nearDoor ? 'block' : 'none';
 }
 
 function sleep() {
