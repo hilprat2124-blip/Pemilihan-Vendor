@@ -216,7 +216,8 @@ game_html = r"""
 </head>
 <body>
 <div id="gameWrap">
-  <canvas id="game" width="860" height="590"></canvas>
+  <!-- CANVAS DIPERBESAR KE 960x640 -->
+  <canvas id="game" width="960" height="640"></canvas>
   <div id="damageFlash"></div>
   <div id="hud">
     <div class="bar"><div class="fill" id="hpFill" style="width:100%"></div><div class="label">❤️ <span id="hpText">100/100</span></div></div>
@@ -412,7 +413,9 @@ function scheduleNote(f, st, dur, type, vol) {
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
-const PX = 5, TILE = 16, WORLD_W = 40, WORLD_H = 30;
+
+// TILE dibesarkan jadi 32 (sebelumnya 16) biar pixel-nya gede!
+const PX = 5, TILE = 32, WORLD_W = 40, WORLD_H = 30;
 
 const T_GRASS=0,T_PATH=1,T_WATER=2,T_TREE=3,T_FARMLAND=4,T_CROP=5,
       T_HOUSE=6,T_STUMP=7,T_SAPLING=8,T_HOUSE_DOOR=9,T_FLOWER=10,T_LAMP=11,
@@ -459,7 +462,7 @@ const ARMY_TYPES = {
 // ============================================
 const camera = { x:0, y:0 };
 const player = {
-  x: 20*TILE, y: 20*TILE, w: 10, h: 14, speed: 1.0,
+  x: 20*TILE, y: 20*TILE, w: 20, h: 28, speed: 2.0,
   dir: 'down', animTimer: 0, walkFrame: 0,
   hp: 100, hpMax: 100, hunger: 100, hungerMax: 100,
   attackCooldown: 0,
@@ -742,22 +745,22 @@ function checkAchievements() {
 // ==== NPCs & ANIMALS ====
 // ============================================
 const ANIMAL_TYPES = {
-  rabbit: { color:'#f0e0d0', hp:20, speed:0.4, dropAmt:2 },
-  chicken: { color:'#f5d76e', hp:15, speed:0.5, dropAmt:1 },
-  cow: { color:'#e0d0b0', hp:40, speed:0.25, dropAmt:3 },
+  rabbit: { color:'#f0e0d0', hp:20, speed:0.8, dropAmt:2 },
+  chicken: { color:'#f5d76e', hp:15, speed:1.0, dropAmt:1 },
+  cow: { color:'#e0d0b0', hp:40, speed:0.5, dropAmt:3 },
 };
 
 function initNPCs() {
   npcs = [
     { x: 8*TILE, y: 15*TILE, dir:'down', color:'#ff6b6b', name:'Budi',
       dialog:'Hire petani (H) atau rekrut prajurit (R)!',
-      targetX: 8, targetY: 15, moveTimer: 3, speed: 0.3, animTimer:0, walkFrame:0 },
+      targetX: 8, targetY: 15, moveTimer: 3, speed: 0.6, animTimer:0, walkFrame:0 },
     { x: 19*TILE, y: 15*TILE, dir:'left', color:'#4ecdc4', name:'Sari',
       dialog:'Tentukan area farm sendiri biar petani fokus!',
-      targetX: 19, targetY: 15, moveTimer: 4, speed: 0.35, animTimer:0, walkFrame:0 },
+      targetX: 19, targetY: 15, moveTimer: 4, speed: 0.7, animTimer:0, walkFrame:0 },
     { x: 32*TILE, y: 15*TILE, dir:'right', color:'#ffe66d', name:'Pak Tani',
       dialog:'Ada toko di timur! Tekan B buat buka.',
-      targetX: 32, targetY: 15, moveTimer: 5, speed: 0.25, animTimer:0, walkFrame:0 },
+      targetX: 32, targetY: 15, moveTimer: 5, speed: 0.5, animTimer:0, walkFrame:0 },
   ];
 }
 initNPCs();
@@ -772,7 +775,7 @@ function spawnAnimals() {
     while (tries < 50 && (world[y][x] !== T_GRASS || (Math.abs(x-20)<5 && Math.abs(y-20)<5)));
     const t = ANIMAL_TYPES[type];
     animals.push({
-      x: x*TILE+3, y: y*TILE+3, type, hp: t.hp, hpMax: t.hp,
+      x: x*TILE+6, y: y*TILE+6, type, hp: t.hp, hpMax: t.hp,
       vx:0, vy:0, speed: t.speed, dir:'down', wanderTimer:0, wanderAngle:0,
       hurtFlash:0, dead:false, animTimer:0, walkFrame:0, pauseTimer:0,
     });
@@ -786,7 +789,7 @@ function spawnSingleAnimal(type) {
   do { x = Math.floor(Math.random()*WORLD_W); y = Math.floor(Math.random()*WORLD_H); tries++; }
   while (tries < 50 && world[y][x] !== T_GRASS);
   animals.push({
-    x: x*TILE+3, y: y*TILE+3, type, hp: t.hp, hpMax: t.hp,
+    x: x*TILE+6, y: y*TILE+6, type, hp: t.hp, hpMax: t.hp,
     vx:0, vy:0, speed: t.speed, dir:'down', wanderTimer:0, wanderAngle:0,
     hurtFlash:0, dead:false, animTimer:0, walkFrame:0, pauseTimer:0,
   });
@@ -799,7 +802,7 @@ function spawnWolf() {
   else if (side === 2) { tx = Math.floor(Math.random()*WORLD_W); ty = WORLD_H-3; }
   else { tx = 1; ty = Math.floor(Math.random()*WORLD_H); }
   wolves.push({
-    x: tx*TILE, y: ty*TILE, w:12, h:12, hp:30, hpMax:30, speed:0.9,
+    x: tx*TILE, y: ty*TILE, w:24, h:24, hp:30, hpMax:30, speed:1.8,
     attackTimer:0, dir:'down', hurtFlash:0, animTimer:0, walkFrame:0, wanderTimer:0, wanderAngle:0,
     target: null,
   });
@@ -910,15 +913,15 @@ function hireWorkerAtArea(fx, fy) {
 
   sfxFence();
 
-  const spawnX = (fx + Math.floor(FARM_AREA_W/2)) * TILE + 3;
-  const spawnY = (fy + Math.floor(FARM_AREA_H/2)) * TILE + 3;
+  const spawnX = (fx + Math.floor(FARM_AREA_W/2)) * TILE + 6;
+  const spawnY = (fy + Math.floor(FARM_AREA_H/2)) * TILE + 6;
 
   workers.push({
     x: spawnX, y: spawnY,
-    w: 10, h: 14,
+    w: 20, h: 28,
     name: `Petani #${workers.length+1}`,
     color: '#8b6f47', shirt: '#5a8a3a',
-    speed: 0.6,
+    speed: 1.2,
     actionDelay: 1.5,
     actionTimer: 0,
     dir: 'down',
@@ -1023,11 +1026,11 @@ function updateWorkers(dt) {
     }
 
     if (w.targetTile) {
-      const tx = w.targetTile.x * TILE + 3;
-      const ty = w.targetTile.y * TILE + 3;
+      const tx = w.targetTile.x * TILE + 6;
+      const ty = w.targetTile.y * TILE + 6;
       const d = Math.hypot(tx - w.x, ty - w.y);
 
-      if (d < 6) {
+      if (d < 10) {
         if (w.actionTimer <= 0) {
           doWorkerAction(w);
           w.actionTimer = w.actionDelay;
@@ -1035,8 +1038,8 @@ function updateWorkers(dt) {
       } else {
         const dx = (tx - w.x) / d * w.speed;
         const dy = (ty - w.y) / d * w.speed;
-        if (canMoveTo(w.x + dx, w.y, 10, 14, world)) w.x += dx;
-        if (canMoveTo(w.x, w.y + dy, 10, 14, world)) w.y += dy;
+        if (canMoveTo(w.x + dx, w.y, 20, 28, world)) w.x += dx;
+        if (canMoveTo(w.x, w.y + dy, 20, 28, world)) w.y += dy;
         if (Math.abs(dx) > Math.abs(dy)) w.dir = dx > 0 ? 'right' : 'left';
         else w.dir = dy > 0 ? 'down' : 'up';
         w.animTimer++;
@@ -1191,14 +1194,14 @@ function recruitSoldier(type) {
   gameGold -= at.cost;
   const campX = 8.5 * TILE, campY = 22.5 * TILE;
   army.push({
-    x: campX + (Math.random()-0.5)*40,
-    y: campY + (Math.random()-0.5)*40,
-    w: 10, h: 14,
+    x: campX + (Math.random()-0.5)*80,
+    y: campY + (Math.random()-0.5)*80,
+    w: 20, h: 28,
     type: type,
     name: `${at.name} #${army.length+1}`,
     color: at.color, shirt: at.shirt,
     hp: at.hp, hpMax: at.hpMax,
-    dmg: at.dmg, range: at.range, speed: at.speed,
+    dmg: at.dmg, range: at.range * 2, speed: at.speed * 2,
     attackDelay: at.attackDelay, attackTimer: 0,
     armor: at.armor,
     armorColor: at.armorColor,
@@ -1253,7 +1256,7 @@ function updateArmy(dt) {
     let nearestDist = 99999;
     wolves.forEach(w => {
       const d = Math.hypot(w.x - s.x, w.y - s.y);
-      if (d < 250 && d < nearestDist) {
+      if (d < 500 && d < nearestDist) {
         nearestWolf = w;
         nearestDist = d;
       }
@@ -1262,17 +1265,17 @@ function updateArmy(dt) {
     s.attackTimer -= dt;
 
     if (s.guard) {
-      if (nearestWolf && nearestDist < 150) {
+      if (nearestWolf && nearestDist < 300) {
         chaseAndAttack(s, nearestWolf, dt);
       } else {
         const dxp = player.x - s.x;
         const dyp = player.y - s.y;
         const distP = Math.hypot(dxp, dyp);
-        if (distP > 45) {
+        if (distP > 90) {
           const dx = dxp / distP * s.speed * 1.2;
           const dy = dyp / distP * s.speed * 1.2;
-          if (canMoveTo(s.x + dx, s.y, 10, 14, world)) s.x += dx;
-          if (canMoveTo(s.x, s.y + dy, 10, 14, world)) s.y += dy;
+          if (canMoveTo(s.x + dx, s.y, 20, 28, world)) s.x += dx;
+          if (canMoveTo(s.x, s.y + dy, 20, 28, world)) s.y += dy;
           if (Math.abs(dx) > Math.abs(dy)) s.dir = dx > 0 ? 'right' : 'left';
           else s.dir = dy > 0 ? 'down' : 'up';
           s.animTimer++;
@@ -1301,11 +1304,11 @@ function updateArmy(dt) {
       const dx = s.patrolTarget.x - s.x;
       const dy = s.patrolTarget.y - s.y;
       const d = Math.hypot(dx, dy);
-      if (d > 4) {
+      if (d > 8) {
         const nx = dx / d * s.speed * 0.5;
         const ny = dy / d * s.speed * 0.5;
-        if (canMoveTo(s.x + nx, s.y, 10, 14, world)) s.x += nx;
-        if (canMoveTo(s.x, s.y + ny, 10, 14, world)) s.y += ny;
+        if (canMoveTo(s.x + nx, s.y, 20, 28, world)) s.x += nx;
+        if (canMoveTo(s.x, s.y + ny, 20, 28, world)) s.y += ny;
         if (Math.abs(nx) > Math.abs(ny)) s.dir = nx > 0 ? 'right' : 'left';
         else s.dir = ny > 0 ? 'down' : 'up';
         s.animTimer++;
@@ -1327,8 +1330,8 @@ function chaseAndAttack(s, wolf, dt) {
         const dx = (wolf.x - s.x) / (d || 1);
         const dy = (wolf.y - s.y) / (d || 1);
         projectiles.push({
-          x: s.x + 5, y: s.y + 5,
-          vx: dx * 8, vy: dy * 8,
+          x: s.x + 10, y: s.y + 10,
+          vx: dx * 16, vy: dy * 16,
           life: 60, dmg: s.dmg,
         });
         sfxBowShoot();
@@ -1349,8 +1352,8 @@ function chaseAndAttack(s, wolf, dt) {
     s.state = 'chase';
     const dx = (wolf.x - s.x) / d * s.speed;
     const dy = (wolf.y - s.y) / d * s.speed;
-    if (canMoveTo(s.x + dx, s.y, 10, 14, world)) s.x += dx;
-    if (canMoveTo(s.x, s.y + dy, 10, 14, world)) s.y += dy;
+    if (canMoveTo(s.x + dx, s.y, 20, 28, world)) s.x += dx;
+    if (canMoveTo(s.x, s.y + dy, 20, 28, world)) s.y += dy;
     if (Math.abs(dx) > Math.abs(dy)) s.dir = dx > 0 ? 'right' : 'left';
     else s.dir = dy > 0 ? 'down' : 'up';
     s.animTimer++;
@@ -1844,8 +1847,8 @@ function useTool(worldX, worldY) {
       const dx = player.dir === 'right' ? 1 : player.dir === 'left' ? -1 : 0;
       const dy = player.dir === 'down' ? 1 : player.dir === 'up' ? -1 : 0;
       projectiles.push({
-        x: player.x + 5, y: player.y + 5,
-        vx: dx * 8, vy: dy * 8,
+        x: player.x + 10, y: player.y + 10,
+        vx: dx * 16, vy: dy * 16,
         life: 60, dmg: 12, fromPlayer: true,
       });
       sfxBowShoot();
@@ -1985,14 +1988,14 @@ function updateWolves(dt) {
 
     let target = null, targetDist = 99999;
     const dp = Math.hypot(player.x - w.x, player.y - w.y);
-    if (dp < 200) { target = player; targetDist = dp; }
+    if (dp < 400) { target = player; targetDist = dp; }
     army.forEach(s => {
       const d = Math.hypot(s.x - w.x, s.y - w.y);
-      if (d < targetDist && d < 200) { target = s; targetDist = d; }
+      if (d < targetDist && d < 400) { target = s; targetDist = d; }
     });
 
     if (target) {
-      if (targetDist < 20) {
+      if (targetDist < 40) {
         if (w.attackTimer <= 0) {
           w.attackTimer = 1.0;
           sfxWolfBite();
@@ -2022,8 +2025,8 @@ function updateWolves(dt) {
       } else {
         const dx = (target.x - w.x) / targetDist * w.speed;
         const dy = (target.y - w.y) / targetDist * w.speed;
-        if (canMoveTo(w.x + dx, w.y, 12, 12, world)) w.x += dx;
-        if (canMoveTo(w.x, w.y + dy, 12, 12, world)) w.y += dy;
+        if (canMoveTo(w.x + dx, w.y, 24, 24, world)) w.x += dx;
+        if (canMoveTo(w.x, w.y + dy, 24, 24, world)) w.y += dy;
         if (Math.abs(dx) > Math.abs(dy)) w.dir = dx > 0 ? 'right' : 'left';
         else w.dir = dy > 0 ? 'down' : 'up';
         w.animTimer++;
@@ -2037,8 +2040,8 @@ function updateWolves(dt) {
       }
       const dx = Math.cos(w.wanderAngle) * w.speed * 0.5;
       const dy = Math.sin(w.wanderAngle) * w.speed * 0.5;
-      if (canMoveTo(w.x + dx, w.y, 12, 12, world)) w.x += dx;
-      if (canMoveTo(w.x, w.y + dy, 12, 12, world)) w.y += dy;
+      if (canMoveTo(w.x + dx, w.y, 24, 24, world)) w.x += dx;
+      if (canMoveTo(w.x, w.y + dy, 24, 24, world)) w.y += dy;
       w.animTimer++;
       if (w.animTimer > 12) { w.animTimer = 0; w.walkFrame = (w.walkFrame + 1) % 4; }
     }
@@ -2066,15 +2069,15 @@ function updateAnimals(dt) {
     }
 
     const dp = Math.hypot(player.x - a.x, player.y - a.y);
-    if (dp < 60) {
+    if (dp < 120) {
       const dx = (a.x - player.x) / dp * a.speed * 2;
       const dy = (a.y - player.y) / dp * a.speed * 2;
       a.vx = dx; a.vy = dy;
     }
 
-    if (canMoveTo(a.x + a.vx, a.y, 10, 10, world)) a.x += a.vx;
+    if (canMoveTo(a.x + a.vx, a.y, 20, 20, world)) a.x += a.vx;
     else a.vx = 0;
-    if (canMoveTo(a.x, a.y + a.vy, 10, 10, world)) a.y += a.vy;
+    if (canMoveTo(a.x, a.y + a.vy, 20, 20, world)) a.y += a.vy;
     else a.vy = 0;
 
     if (Math.abs(a.vx) > Math.abs(a.vy)) a.dir = a.vx > 0 ? 'right' : 'left';
@@ -2097,7 +2100,7 @@ function updateProjectiles(dt) {
     p.x += p.vx; p.y += p.vy;
     p.life--;
     wolves.forEach(w => {
-      if (Math.abs(w.x - p.x) < 12 && Math.abs(w.y - p.y) < 12) {
+      if (Math.abs(w.x - p.x) < 24 && Math.abs(w.y - p.y) < 24) {
         w.hp -= p.dmg;
         w.hurtFlash = 10;
         p.life = 0;
@@ -2115,7 +2118,7 @@ function updateProjectiles(dt) {
     if (p.fromPlayer) {
       animals.forEach(a => {
         if (a.dead) return;
-        if (Math.abs(a.x - p.x) < 12 && Math.abs(a.y - p.y) < 12) {
+        if (Math.abs(a.x - p.x) < 24 && Math.abs(a.y - p.y) < 24) {
           a.hp -= p.dmg;
           a.hurtFlash = 10;
           p.life = 0;
@@ -2151,11 +2154,11 @@ function updateNPCs(dt) {
     const dx = n.targetX * TILE - n.x;
     const dy = n.targetY * TILE - n.y;
     const d = Math.hypot(dx, dy);
-    if (d > 4) {
+    if (d > 8) {
       const nx = dx / d * n.speed;
       const ny = dy / d * n.speed;
-      if (canMoveTo(n.x + nx, n.y, 10, 14, world)) n.x += nx;
-      if (canMoveTo(n.x, n.y + ny, 10, 14, world)) n.y += ny;
+      if (canMoveTo(n.x + nx, n.y, 20, 28, world)) n.x += nx;
+      if (canMoveTo(n.x, n.y + ny, 20, 28, world)) n.y += ny;
       if (Math.abs(nx) > Math.abs(ny)) n.dir = nx > 0 ? 'right' : 'left';
       else n.dir = ny > 0 ? 'down' : 'up';
       n.animTimer++;
@@ -2309,7 +2312,7 @@ canvas.addEventListener('click', e => {
   }
 
   for (const n of npcs) {
-    if (Math.abs(n.x - wx) < 20 && Math.abs(n.y - wy) < 20) {
+    if (Math.abs(n.x - wx) < 30 && Math.abs(n.y - wy) < 30) {
       showDialog(`${n.name}: ${n.dialog}`);
       return;
     }
@@ -2333,136 +2336,136 @@ function drawTile(t, sx, sy) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#4a8d4a';
-    ctx.fillRect(sx+2, sy+2, 4, 4);
-    ctx.fillRect(sx+9, sy+7, 3, 3);
+    ctx.fillRect(sx+4, sy+4, 8, 8);
+    ctx.fillRect(sx+18, sy+14, 6, 6);
   } else if (t === T_PATH) {
     ctx.fillStyle = '#8a7a5a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#9a8a6a';
-    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillRect(sx+2, sy+2, 28, 28);
   } else if (t === T_WATER) {
     ctx.fillStyle = '#2a5a9a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#3a6aaa';
-    const wave = Math.sin(Date.now()/500 + sx/20) * 2;
-    ctx.fillRect(sx+3, sy+5+wave, 10, 2);
-    ctx.fillRect(sx+5, sy+10+wave, 6, 2);
+    const wave = Math.sin(Date.now()/500 + sx/20) * 4;
+    ctx.fillRect(sx+6, sy+10+wave, 20, 4);
+    ctx.fillRect(sx+10, sy+20+wave, 12, 4);
   } else if (t === T_TREE) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(sx+6, sy+8, 4, 8);
+    ctx.fillRect(sx+12, sy+16, 8, 16);
     ctx.fillStyle = '#2a6d2a';
-    ctx.fillRect(sx+2, sy+2, 12, 10);
+    ctx.fillRect(sx+4, sy+4, 24, 20);
     ctx.fillStyle = '#3a8d3a';
-    ctx.fillRect(sx+4, sy+3, 8, 6);
+    ctx.fillRect(sx+8, sy+6, 16, 12);
   } else if (t === T_FARMLAND) {
     ctx.fillStyle = '#6a4a2a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#7a5a3a';
-    ctx.fillRect(sx+2, sy+3, 12, 2);
-    ctx.fillRect(sx+2, sy+8, 12, 2);
-    ctx.fillRect(sx+2, sy+13, 12, 2);
+    ctx.fillRect(sx+4, sy+6, 24, 4);
+    ctx.fillRect(sx+4, sy+16, 24, 4);
+    ctx.fillRect(sx+4, sy+26, 24, 4);
   } else if (t === T_CROP) {
     ctx.fillStyle = '#6a4a2a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#7a5a3a';
-    ctx.fillRect(sx+2, sy+13, 12, 2);
+    ctx.fillRect(sx+4, sy+26, 24, 4);
   } else if (t === T_HOUSE) {
     ctx.fillStyle = '#8a6a4a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#aa8a6a';
-    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillRect(sx+2, sy+2, 28, 28);
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(sx, sy, 16, 4);
+    ctx.fillRect(sx, sy, 32, 8);
   } else if (t === T_HOUSE_DOOR) {
     ctx.fillStyle = '#8a6a4a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(sx+2, sy+4, 12, 12);
+    ctx.fillRect(sx+4, sy+8, 24, 24);
     ctx.fillStyle = '#ffd700';
-    ctx.fillRect(sx+11, sy+10, 2, 2);
+    ctx.fillRect(sx+22, sy+20, 4, 4);
   } else if (t === T_FLOWER) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     const colors = ['#ff6b6b', '#ffed4a', '#4a90e2', '#ff69b4'];
     ctx.fillStyle = colors[(sx+sy) % colors.length];
-    ctx.fillRect(sx+5, sy+5, 6, 6);
+    ctx.fillRect(sx+10, sy+10, 12, 12);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(sx+7, sy+7, 2, 2);
+    ctx.fillRect(sx+14, sy+14, 4, 4);
   } else if (t === T_LAMP) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(sx+7, sy+6, 3, 10);
+    ctx.fillRect(sx+14, sy+12, 6, 20);
     ctx.fillStyle = '#ffed4a';
-    ctx.fillRect(sx+5, sy+2, 7, 7);
+    ctx.fillRect(sx+10, sy+4, 14, 14);
     ctx.fillStyle = '#fff8a0';
-    ctx.fillRect(sx+6, sy+3, 5, 5);
+    ctx.fillRect(sx+12, sy+6, 10, 10);
   } else if (t === T_STUMP) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(sx+4, sy+8, 8, 6);
+    ctx.fillRect(sx+8, sy+16, 16, 12);
     ctx.fillStyle = '#7a5a3a';
-    ctx.fillRect(sx+5, sy+9, 6, 4);
+    ctx.fillRect(sx+10, sy+18, 12, 8);
   } else if (t === T_SAPLING) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(sx+7, sy+8, 2, 5);
+    ctx.fillRect(sx+14, sy+16, 4, 10);
     ctx.fillStyle = '#2a6d2a';
-    ctx.fillRect(sx+5, sy+4, 6, 5);
+    ctx.fillRect(sx+10, sy+8, 12, 10);
   } else if (t === T_BED) {
     ctx.fillStyle = '#4a4a6a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#6a6a9a';
-    ctx.fillRect(sx+2, sy+2, 12, 12);
+    ctx.fillRect(sx+4, sy+4, 24, 24);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(sx+3, sy+3, 10, 5);
+    ctx.fillRect(sx+6, sy+6, 20, 10);
   } else if (t === T_INTERIOR_FLOOR) {
     ctx.fillStyle = '#6a5a4a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#7a6a5a';
-    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillRect(sx+2, sy+2, 28, 28);
   } else if (t === T_WALL) {
     ctx.fillStyle = '#4a3a2a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#5a4a3a';
-    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillRect(sx+2, sy+2, 28, 28);
   } else if (t === T_TABLE) {
     ctx.fillStyle = '#6a5a4a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#8a6a4a';
-    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillRect(sx+2, sy+2, 28, 28);
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(sx+2, sy+2, 12, 3);
+    ctx.fillRect(sx+4, sy+4, 24, 6);
   } else if (t === T_SHOP) {
     ctx.fillStyle = '#5a4a3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#8a6a4a';
-    ctx.fillRect(sx+1, sy+1, 14, 14);
+    ctx.fillRect(sx+2, sy+2, 28, 28);
     ctx.fillStyle = '#ffd700';
-    ctx.fillRect(sx+3, sy+3, 10, 5);
+    ctx.fillRect(sx+6, sy+6, 20, 10);
     ctx.fillStyle = '#fff';
-    ctx.font = '8px monospace';
-    ctx.fillText('$', sx+6, sy+8);
+    ctx.font = '16px monospace';
+    ctx.fillText('$', sx+12, sy+16);
   } else if (t === T_CAMP) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#8a5a3a';
-    ctx.fillRect(sx+3, sy+5, 10, 8);
+    ctx.fillRect(sx+6, sy+10, 20, 16);
     ctx.fillStyle = '#aa7a5a';
-    ctx.fillRect(sx+5, sy+3, 6, 6);
+    ctx.fillRect(sx+10, sy+6, 12, 12);
   } else if (t === T_FENCE) {
     ctx.fillStyle = '#3a7d3a';
     ctx.fillRect(sx, sy, TILE, TILE);
     ctx.fillStyle = '#8a5a2a';
-    ctx.fillRect(sx+2, sy+2, 12, 12);
+    ctx.fillRect(sx+4, sy+4, 24, 24);
     ctx.fillStyle = '#aa7a4a';
-    ctx.fillRect(sx+4, sy+4, 8, 8);
+    ctx.fillRect(sx+8, sy+8, 16, 16);
     ctx.fillStyle = '#6a4a1a';
-    ctx.fillRect(sx+6, sy+6, 4, 4);
+    ctx.fillRect(sx+12, sy+12, 8, 8);
   }
 }
 
@@ -2471,116 +2474,116 @@ function drawCrop(key, c, sx, sy) {
   const cropInfo = CROP_TYPES[c.type] || CROP_TYPES.wheat;
   if (c.stage === 0) {
     ctx.fillStyle = '#5aff5a';
-    ctx.fillRect(sx+7, sy+10, 2, 3);
+    ctx.fillRect(sx+14, sy+20, 4, 6);
   } else if (c.stage === 1) {
     ctx.fillStyle = '#5aff5a';
-    ctx.fillRect(sx+6, sy+7, 4, 6);
+    ctx.fillRect(sx+12, sy+14, 8, 12);
     ctx.fillStyle = '#7aff7a';
-    ctx.fillRect(sx+7, sy+5, 2, 3);
+    ctx.fillRect(sx+14, sy+10, 4, 6);
   } else if (c.stage === 2) {
     ctx.fillStyle = '#5aff5a';
-    ctx.fillRect(sx+5, sy+4, 6, 9);
+    ctx.fillRect(sx+10, sy+8, 12, 18);
     ctx.fillStyle = '#7aff7a';
-    ctx.fillRect(sx+6, sy+2, 4, 4);
+    ctx.fillRect(sx+12, sy+4, 8, 8);
   } else if (c.stage >= 3) {
     ctx.fillStyle = cropInfo.color;
-    ctx.fillRect(sx+4, sy+2, 8, 12);
+    ctx.fillRect(sx+8, sy+4, 16, 24);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(sx+5, sy+3, 2, 2);
-    ctx.fillRect(sx+9, sy+5, 2, 2);
+    ctx.fillRect(sx+10, sy+6, 4, 4);
+    ctx.fillRect(sx+18, sy+10, 4, 4);
     ctx.fillStyle = 'rgba(255,255,100,0.3)';
-    ctx.fillRect(sx+2, sy, 12, 16);
+    ctx.fillRect(sx+4, sy, 24, 32);
   }
 }
 
 function drawPlayer(x, y) {
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(x-2, y+12, 14, 4);
+  ctx.fillRect(x-4, y+24, 28, 8);
   
   ctx.fillStyle = '#4a90e2';
-  ctx.fillRect(x, y+6, 10, 8);
+  ctx.fillRect(x, y+12, 20, 16);
   ctx.fillStyle = '#3a70b2';
-  ctx.fillRect(x, y+10, 10, 4);
+  ctx.fillRect(x, y+20, 20, 8);
   
   ctx.fillStyle = '#f0c8a0';
-  ctx.fillRect(x+1, y, 8, 7);
+  ctx.fillRect(x+2, y, 16, 14);
   ctx.fillStyle = '#3a2a1a';
-  ctx.fillRect(x, y-1, 10, 4);
+  ctx.fillRect(x, y-2, 20, 8);
   
-  const eyeX = player.dir === 'left' ? 1 : player.dir === 'right' ? 7 : 3;
+  const eyeX = player.dir === 'left' ? 2 : player.dir === 'right' ? 14 : 6;
   ctx.fillStyle = '#000';
-  ctx.fillRect(x+eyeX, y+3, 2, 2);
+  ctx.fillRect(x+eyeX, y+6, 4, 4);
   if (player.dir !== 'left' && player.dir !== 'right') {
-    ctx.fillRect(x+eyeX+3, y+3, 2, 2);
+    ctx.fillRect(x+eyeX+6, y+6, 4, 4);
   }
   
-  const legOff = player.walkFrame === 1 ? -1 : player.walkFrame === 3 ? 1 : 0;
+  const legOff = player.walkFrame === 1 ? -2 : player.walkFrame === 3 ? 2 : 0;
   ctx.fillStyle = '#2a2a3e';
-  ctx.fillRect(x+1+legOff, y+14, 3, 3);
-  ctx.fillRect(x+6-legOff, y+14, 3, 3);
+  ctx.fillRect(x+2+legOff, y+28, 6, 6);
+  ctx.fillRect(x+12-legOff, y+28, 6, 6);
 }
 
 function drawWorker(w) {
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(w.x-2, w.y+12, 14, 4);
+  ctx.fillRect(w.x-4, w.y+24, 28, 8);
   
   ctx.fillStyle = w.shirt;
-  ctx.fillRect(w.x, w.y+6, 10, 8);
+  ctx.fillRect(w.x, w.y+12, 20, 16);
   ctx.fillStyle = w.color;
-  ctx.fillRect(w.x, w.y+10, 10, 4);
+  ctx.fillRect(w.x, w.y+20, 20, 8);
   
   ctx.fillStyle = '#f0c8a0';
-  ctx.fillRect(w.x+1, w.y, 8, 7);
+  ctx.fillRect(w.x+2, w.y, 16, 14);
   ctx.fillStyle = '#8a6a2a';
-  ctx.fillRect(w.x, w.y-1, 10, 4);
+  ctx.fillRect(w.x, w.y-2, 20, 8);
   
   ctx.fillStyle = '#000';
-  ctx.fillRect(w.x+3, w.y+3, 2, 2);
-  ctx.fillRect(w.x+6, w.y+3, 2, 2);
+  ctx.fillRect(w.x+6, w.y+6, 4, 4);
+  ctx.fillRect(w.x+12, w.y+6, 4, 4);
   
-  const legOff = w.walkFrame === 1 ? -1 : w.walkFrame === 3 ? 1 : 0;
+  const legOff = w.walkFrame === 1 ? -2 : w.walkFrame === 3 ? 2 : 0;
   ctx.fillStyle = '#2a2a3e';
-  ctx.fillRect(w.x+1+legOff, w.y+14, 3, 3);
-  ctx.fillRect(w.x+6-legOff, w.y+14, 3, 3);
+  ctx.fillRect(w.x+2+legOff, w.y+28, 6, 6);
+  ctx.fillRect(w.x+12-legOff, w.y+28, 6, 6);
 }
 
 function drawSoldier(s) {
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(s.x-2, s.y+12, 14, 4);
+  ctx.fillRect(s.x-4, s.y+24, 28, 8);
   
   if (s.hurtFlash > 0) {
     ctx.fillStyle = '#ff8888';
-    ctx.fillRect(s.x, s.y, 10, 16);
+    ctx.fillRect(s.x, s.y, 20, 32);
     return;
   }
   
   ctx.fillStyle = s.armorColor || '#888';
-  ctx.fillRect(s.x, s.y+6, 10, 8);
+  ctx.fillRect(s.x, s.y+12, 20, 16);
   ctx.fillStyle = s.shirt;
-  ctx.fillRect(s.x+1, s.y+7, 8, 6);
+  ctx.fillRect(s.x+2, s.y+14, 16, 12);
   
   ctx.fillStyle = '#f0c8a0';
-  ctx.fillRect(s.x+1, s.y, 8, 7);
+  ctx.fillRect(s.x+2, s.y, 16, 14);
   ctx.fillStyle = s.color;
-  ctx.fillRect(s.x, s.y-1, 10, 4);
+  ctx.fillRect(s.x, s.y-2, 20, 8);
   
   if (s.type === 'archer') {
     ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(s.x+9, s.y+4, 2, 8);
+    ctx.fillRect(s.x+18, s.y+8, 4, 16);
   } else if (s.type === 'knight') {
     ctx.fillStyle = '#c0c0c0';
-    ctx.fillRect(s.x-2, s.y+5, 2, 10);
-    ctx.fillRect(s.x+10, s.y+5, 2, 10);
+    ctx.fillRect(s.x-4, s.y+10, 4, 20);
+    ctx.fillRect(s.x+20, s.y+10, 4, 20);
   } else {
     ctx.fillStyle = '#ccc';
-    ctx.fillRect(s.x+9, s.y+2, 2, 10);
+    ctx.fillRect(s.x+18, s.y+4, 4, 20);
     ctx.fillStyle = '#8a5a2a';
-    ctx.fillRect(s.x+9, s.y+11, 4, 2);
+    ctx.fillRect(s.x+18, s.y+22, 8, 4);
   }
   
   if (s.guard) {
     ctx.fillStyle = '#ffd700';
-    ctx.fillRect(s.x+3, s.y-6, 4, 4);
+    ctx.fillRect(s.x+6, s.y-12, 8, 8);
   }
 }
 
@@ -2588,45 +2591,45 @@ function drawAnimal(a) {
   if (a.dead) return;
   const info = ANIMAL_TYPES[a.type];
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.fillRect(a.x-1, a.y+8, 12, 3);
+  ctx.fillRect(a.x-2, a.y+16, 24, 6);
   
   let color = info.color;
   if (a.hurtFlash > 0) color = '#ff8888';
   ctx.fillStyle = color;
-  ctx.fillRect(a.x, a.y+3, 10, 7);
-  ctx.fillRect(a.x+2, a.y, 6, 5);
+  ctx.fillRect(a.x, a.y+6, 20, 14);
+  ctx.fillRect(a.x+4, a.y, 12, 10);
   
   ctx.fillStyle = '#000';
-  ctx.fillRect(a.x+3, a.y+1, 1, 1);
-  ctx.fillRect(a.x+6, a.y+1, 1, 1);
+  ctx.fillRect(a.x+6, a.y+2, 2, 2);
+  ctx.fillRect(a.x+12, a.y+2, 2, 2);
   
-  const legOff = a.walkFrame === 1 ? -1 : a.walkFrame === 3 ? 1 : 0;
+  const legOff = a.walkFrame === 1 ? -2 : a.walkFrame === 3 ? 2 : 0;
   ctx.fillStyle = color;
-  ctx.fillRect(a.x+1+legOff, a.y+9, 2, 3);
-  ctx.fillRect(a.x+7-legOff, a.y+9, 2, 3);
+  ctx.fillRect(a.x+2+legOff, a.y+18, 4, 6);
+  ctx.fillRect(a.x+14-legOff, a.y+18, 4, 6);
 }
 
 function drawWolf(w) {
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(w.x-2, w.y+8, 16, 4);
+  ctx.fillRect(w.x-4, w.y+16, 32, 8);
   
   let color = '#6a6a7a';
   if (w.hurtFlash > 0) color = '#ff8888';
   ctx.fillStyle = color;
-  ctx.fillRect(w.x, w.y+3, 12, 8);
-  ctx.fillRect(w.x+3, w.y, 7, 5);
+  ctx.fillRect(w.x, w.y+6, 24, 16);
+  ctx.fillRect(w.x+6, w.y, 14, 10);
   
-  ctx.fillRect(w.x+3, w.y-2, 2, 3);
-  ctx.fillRect(w.x+8, w.y-2, 2, 3);
+  ctx.fillRect(w.x+6, w.y-4, 4, 6);
+  ctx.fillRect(w.x+16, w.y-4, 4, 6);
   
   ctx.fillStyle = '#ff4444';
-  ctx.fillRect(w.x+4, w.y+2, 2, 2);
-  ctx.fillRect(w.x+7, w.y+2, 2, 2);
+  ctx.fillRect(w.x+8, w.y+4, 4, 4);
+  ctx.fillRect(w.x+14, w.y+4, 4, 4);
   
-  const legOff = w.walkFrame === 1 ? -1 : w.walkFrame === 3 ? 1 : 0;
+  const legOff = w.walkFrame === 1 ? -2 : w.walkFrame === 3 ? 2 : 0;
   ctx.fillStyle = color;
-  ctx.fillRect(w.x+1+legOff, w.y+10, 3, 3);
-  ctx.fillRect(w.x+8-legOff, w.y+10, 3, 3);
+  ctx.fillRect(w.x+2+legOff, w.y+20, 6, 6);
+  ctx.fillRect(w.x+16-legOff, w.y+20, 6, 6);
 }
 
 function render() {
@@ -2681,51 +2684,51 @@ function render() {
 
   npcs.forEach(n => {
     const sx = n.x - camera.x, sy = n.y - camera.y;
-    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    if (sx < -100 || sx > canvas.width + 100 || sy < -100 || sy > canvas.height + 100) return;
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(sx-2, sy+12, 14, 4);
+    ctx.fillRect(sx-4, sy+24, 28, 8);
     ctx.fillStyle = n.color;
-    ctx.fillRect(sx, sy+6, 10, 8);
+    ctx.fillRect(sx, sy+12, 20, 16);
     ctx.fillStyle = '#f0c8a0';
-    ctx.fillRect(sx+1, sy, 8, 7);
+    ctx.fillRect(sx+2, sy, 16, 14);
     ctx.fillStyle = '#000';
-    ctx.fillRect(sx+3, sy+3, 2, 2);
-    ctx.fillRect(sx+6, sy+3, 2, 2);
+    ctx.fillRect(sx+6, sy+6, 4, 4);
+    ctx.fillRect(sx+12, sy+6, 4, 4);
     ctx.fillStyle = '#fff';
-    ctx.font = '8px monospace';
+    ctx.font = '16px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(n.name, sx+5, sy-4);
+    ctx.fillText(n.name, sx+10, sy-8);
     ctx.textAlign = 'left';
   });
 
   animals.forEach(a => {
     const sx = a.x - camera.x, sy = a.y - camera.y;
-    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    if (sx < -100 || sx > canvas.width + 100 || sy < -100 || sy > canvas.height + 100) return;
     drawAnimal({ ...a, x: sx, y: sy });
   });
 
   workers.forEach(w => {
     const sx = w.x - camera.x, sy = w.y - camera.y;
-    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    if (sx < -100 || sx > canvas.width + 100 || sy < -100 || sy > canvas.height + 100) return;
     drawWorker({ ...w, x: sx, y: sy });
   });
 
   army.forEach(s => {
     const sx = s.x - camera.x, sy = s.y - camera.y;
-    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    if (sx < -100 || sx > canvas.width + 100 || sy < -100 || sy > canvas.height + 100) return;
     drawSoldier({ ...s, x: sx, y: sy });
   });
 
   wolves.forEach(w => {
     const sx = w.x - camera.x, sy = w.y - camera.y;
-    if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+    if (sx < -100 || sx > canvas.width + 100 || sy < -100 || sy > canvas.height + 100) return;
     drawWolf({ ...w, x: sx, y: sy });
   });
 
   projectiles.forEach(p => {
     const sx = p.x - camera.x, sy = p.y - camera.y;
     ctx.fillStyle = '#ffd700';
-    ctx.fillRect(sx-1, sy-1, 3, 3);
+    ctx.fillRect(sx-2, sy-2, 6, 6);
   });
 
   const psx = player.x - camera.x;
@@ -2740,22 +2743,22 @@ function render() {
     for (let ty = startY; ty < endY; ty++) {
       for (let tx = startX; tx < endX; tx++) {
         if (aw[ty] && aw[ty][tx] === T_LAMP) {
-          const lx = tx * TILE - camera.x + 8;
-          const ly = ty * TILE - camera.y + 8;
-          const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, 60);
+          const lx = tx * TILE - camera.x + 16;
+          const ly = ty * TILE - camera.y + 16;
+          const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, 120);
           grad.addColorStop(0, 'rgba(255,237,74,0.3)');
           grad.addColorStop(1, 'rgba(255,237,74,0)');
           ctx.fillStyle = grad;
-          ctx.fillRect(lx-60, ly-60, 120, 120);
+          ctx.fillRect(lx-120, ly-120, 240, 240);
         }
       }
     }
     
-    const pgrad = ctx.createRadialGradient(psx+5, psy+5, 0, psx+5, psy+5, 50);
+    const pgrad = ctx.createRadialGradient(psx+10, psy+10, 0, psx+10, psy+10, 100);
     pgrad.addColorStop(0, 'rgba(255,255,200,0.15)');
     pgrad.addColorStop(1, 'rgba(255,255,200,0)');
     ctx.fillStyle = pgrad;
-    ctx.fillRect(psx-50, psy-50, 110, 110);
+    ctx.fillRect(psx-100, psy-100, 220, 220);
   }
 
   const tod = getTimeOfDay();
@@ -2880,10 +2883,10 @@ function loadGame() {
       workers.length = 0;
       data.workers.forEach((w, i) => {
         workers.push({
-          x: w.x, y: w.y, w: 10, h: 14,
+          x: w.x, y: w.y, w: 20, h: 28,
           name: `Petani #${i+1}`,
           color: '#8b6f47', shirt: '#5a8a3a',
-          speed: 0.6, actionDelay: 1.5, actionTimer: 0,
+          speed: 1.2, actionDelay: 1.5, actionTimer: 0,
           dir: 'down', animTimer: 0, walkFrame: 0,
           state: 'idle', targetTile: null,
           salary: 5, salaryTimer: 60,
@@ -3042,4 +3045,4 @@ console.log('🌾 Pixel Farm RPG v15 loaded!');
 </html>
 """
 
-components.html(game_html, height=700, scrolling=False)
+components.html(game_html, height=800, scrolling=False)
