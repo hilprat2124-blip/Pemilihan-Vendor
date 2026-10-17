@@ -499,6 +499,10 @@ let nearShop = false;
 let nearWater = false;
 let nearShopTile = null;
 
+// === FIX: simpan posisi pintu terakhir saat masuk rumah ===
+let lastDoorPos = null;     // { x, y } posisi player tepat SEBELUM masuk
+let lastInteriorIdx = 0;    // indeks rumah yang dimasuki
+
 // ============================================
 // ==== UTILS ====
 // ============================================
@@ -507,8 +511,6 @@ function isSolid(tx, ty, w) {
   if (!ww || !ww[ty]) return true;
   if (tx < 0 || ty < 0 || tx >= ww[0].length || ty >= ww.length) return true;
   const t = ww[ty][tx];
-  // T_FENCE TETAP SOLID KARENA KITA UDAH BIKIN GATE DI AREA FARM
-  // TAPI BUAT PLAYER, KITA KECUALIKAN T_HOUSE_DOOR BIAR BISA MASUK
   return [T_WATER,T_TREE,T_HOUSE,T_LAMP,T_SAPLING,T_WALL,T_TABLE,T_BED].includes(t);
 }
 function canMoveTo(nx, ny, w, h, ww) {
@@ -543,6 +545,30 @@ const skyColors = {
   evening:'rgba(255,120,80,0.2)', night:'rgba(20,20,60,0.55)',
 };
 function getActiveWorld() { return currentInterior ? currentInterior.world : world; }
+
+// === FIX: clamp pakai ukuran world aktif (interior 20x14 atau world 40x30) ===
+function clampPlayerToActiveWorld() {
+  const aw = getActiveWorld();
+  const ww = aw[0].length * TILE;
+  const hh = aw.length * TILE;
+  player.x = Math.max(0, Math.min(ww - player.w, player.x));
+  player.y = Math.max(0, Math.min(hh - player.h, player.y));
+}
+
+// === FIX: snap kamera ke world aktif ===
+function snapCameraToActiveWorld() {
+  const aw = getActiveWorld();
+  const awW = aw[0].length * TILE;
+  const awH = aw.length * TILE;
+  camera.x = player.x + player.w/2 - canvas.width/2;
+  camera.y = player.y + player.h/2 - canvas.height/2;
+  camera.x = Math.max(0, Math.min(awW - canvas.width, camera.x));
+  camera.y = Math.max(0, Math.min(awH - canvas.height, camera.y));
+  // Kalau map lebih kecil dari canvas (misal interior 20x14 = 640x448 < 960x640),
+  // center-kan kamera biar ga nyangkut di kiri atas
+  if (awW < canvas.width) camera.x = (awW - canvas.width) / 2;
+  if (awH < canvas.height) camera.y = (awH - canvas.height) / 2;
+}
 
 function getSeedKey(cropType) {
   return 'seeds' + (cropType === 'wheat' ? '' : '_' + cropType);
@@ -675,9 +701,9 @@ function generateInterior() {
   return w;
 }
 const interiors = {
-  0: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 9*TILE} },
-  1: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 9*TILE} },
-  2: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 9*TILE} },
+  0: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 2*TILE} },
+  1: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 2*TILE} },
+  2: { world: generateInterior(), playerSpawn: {x: 10*TILE, y: 2*TILE} },
 };
 
 // ============================================
@@ -875,7 +901,6 @@ function hireWorkerAtArea(fx, fy) {
   }
   gameGold -= 100;
 
-  // 1. Bersihin tile di DALAM area (paksa jadi rumput biar bisa dicangkul)
   for (let dy = 0; dy < FARM_AREA_H; dy++) {
     for (let dx = 0; dx < FARM_AREA_W; dx++) {
       const tx = fx + dx, ty = fy + dy;
@@ -887,7 +912,6 @@ function hireWorkerAtArea(fx, fy) {
     }
   }
 
-  // 2. Pagar Atas
   for (let dx = -1; dx <= FARM_AREA_W; dx++) {
     const tx = fx + dx, ty = fy - 1;
     if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
@@ -897,7 +921,6 @@ function hireWorkerAtArea(fx, fy) {
     }
   }
 
-  // 3. Pagar Kiri
   for (let dy = 0; dy < FARM_AREA_H; dy++) {
     const tx = fx - 1, ty = fy + dy;
     if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
@@ -907,7 +930,6 @@ function hireWorkerAtArea(fx, fy) {
     }
   }
 
-  // 4. Pagar Kanan
   for (let dy = 0; dy < FARM_AREA_H; dy++) {
     const tx = fx + FARM_AREA_W, ty = fy + dy;
     if (tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H) {
@@ -917,7 +939,6 @@ function hireWorkerAtArea(fx, fy) {
     }
   }
 
-  // 5. Pagar Bawah + Gerbang Tengah
   const gateX = fx + Math.floor(FARM_AREA_W / 2); 
   for (let dx = -1; dx <= FARM_AREA_W; dx++) {
     const tx = fx + dx, ty = fy + FARM_AREA_H;
@@ -928,7 +949,7 @@ function hireWorkerAtArea(fx, fy) {
         }
       } else {
         if (world[ty][tx] === T_FENCE || world[ty][tx] === T_FLOWER) {
-          world[ty][tx] = T_GRASS; // Buka gerbang
+          world[ty][tx] = T_GRASS;
         }
       }
     }
@@ -2207,24 +2228,41 @@ window.addEventListener('keydown', e => {
   if (k === 'b') { ensureAudio(); toggleShop(); }
   if (k === 'e') {
     ensureAudio();
-    if (nearBed) sleep();
+    if (nearBed && currentInterior) sleep();
+    // === FIX: pintu masuk/keluar ===
     if (nearDoor) {
       if (!currentInterior) {
-        currentInterior = interiors[0];
+        // Simpan posisi player SEKARANG (tepat di depan pintu)
+        lastDoorPos = { x: player.x, y: player.y };
+        // Deteksi rumah berdasarkan posisi X player (rumah ada di tile x0..x0+4)
+        const ptx = Math.floor((player.x + player.w/2) / TILE);
+        let idx = 0;
+        if (ptx >= 17 && ptx <= 21) idx = 1;
+        else if (ptx >= 30 && ptx <= 34) idx = 2;
+        else idx = 0;
+        lastInteriorIdx = idx;
+        currentInterior = interiors[idx];
         player.x = currentInterior.playerSpawn.x;
         player.y = currentInterior.playerSpawn.y;
-        // SNAP KAMERA
-        camera.x = player.x + player.w/2 - canvas.width/2;
-        camera.y = player.y + player.h/2 - canvas.height/2;
+        player.dir = 'down';
+        player.walkFrame = 0;
+        snapCameraToActiveWorld();
         sfxDoor();
         showToast('🚪 Masuk ke rumah', '#4a90e2');
       } else {
+        // Keluar rumah → kembalikan ke posisi SEMULA di depan pintu
         currentInterior = null;
-        player.x = 17.5 * TILE;
-        player.y = 13 * TILE;
-        // SNAP KAMERA
-        camera.x = player.x + player.w/2 - canvas.width/2;
-        camera.y = player.y + player.h/2 - canvas.height/2;
+        if (lastDoorPos) {
+          player.x = lastDoorPos.x;
+          player.y = lastDoorPos.y;
+        } else {
+          player.x = 17.5 * TILE;
+          player.y = 13 * TILE;
+        }
+        player.dir = 'down';
+        player.walkFrame = 0;
+        clampPlayerToActiveWorld();
+        snapCameraToActiveWorld();
         sfxDoor();
         showToast('🚪 Keluar rumah', '#4a90e2');
       }
@@ -2281,8 +2319,8 @@ function updatePlayer(dt) {
     player.walkFrame = 0;
   }
 
-  player.x = Math.max(0, Math.min(WORLD_W*TILE - player.w, player.x));
-  player.y = Math.max(0, Math.min(WORLD_H*TILE - player.h, player.y));
+  // === FIX: clamp pakai world aktif ===
+  clampPlayerToActiveWorld();
 
   const ptx = Math.floor((player.x + player.w/2) / TILE);
   const pty = Math.floor((player.y + player.h/2) / TILE);
@@ -2864,7 +2902,7 @@ function updateHUD() {
 function saveGame() {
   try {
     const saveData = {
-      version: 15,
+      version: 16,
       player: { x: player.x, y: player.y, hp: player.hp, hunger: player.hunger },
       time: { totalMinutes: time.totalMinutes, day: time.day },
       inventory: { ...inventory },
@@ -2891,7 +2929,7 @@ function saveGame() {
         x: w.x, y: w.y, farmArea: w.farmArea, currentCropType: w.currentCropType,
       })),
     };
-    localStorage.setItem('pixelFarmRPG_v15', JSON.stringify(saveData));
+    localStorage.setItem('pixelFarmRPG_v16', JSON.stringify(saveData));
     sfxSave();
     showSaveIndicator();
   } catch (e) {
@@ -2901,10 +2939,10 @@ function saveGame() {
 
 function loadGame() {
   try {
-    const raw = localStorage.getItem('pixelFarmRPG_v15');
+    const raw = localStorage.getItem('pixelFarmRPG_v16');
     if (!raw) return false;
     const data = JSON.parse(raw);
-    if (!data || data.version !== 15) return false;
+    if (!data || data.version !== 16) return false;
     
     player.x = data.player.x;
     player.y = data.player.y;
@@ -3000,12 +3038,19 @@ function gameLoop(now) {
     spawnWolf();
   }
 
+  // Kamera follow + clamp pakai world aktif
+  const aw = getActiveWorld();
+  const awW = aw[0].length * TILE;
+  const awH = aw.length * TILE;
   const targetCamX = player.x + player.w/2 - canvas.width/2;
   const targetCamY = player.y + player.h/2 - canvas.height/2;
   camera.x += (targetCamX - camera.x) * 0.1;
   camera.y += (targetCamY - camera.y) * 0.1;
-  camera.x = Math.max(0, Math.min(WORLD_W*TILE - canvas.width, camera.x));
-  camera.y = Math.max(0, Math.min(WORLD_H*TILE - canvas.height, camera.y));
+  camera.x = Math.max(0, Math.min(awW - canvas.width, camera.x));
+  camera.y = Math.max(0, Math.min(awH - canvas.height, camera.y));
+  // Kalau map lebih kecil dari canvas, center-kan
+  if (awW < canvas.width) camera.x = (awW - canvas.width) / 2;
+  if (awH < canvas.height) camera.y = (awH - canvas.height) / 2;
 
   render();
   updateHUD();
@@ -3086,7 +3131,7 @@ requestAnimationFrame(gameLoop);
 document.addEventListener('click', () => ensureAudio(), { once: true });
 document.addEventListener('keydown', () => ensureAudio(), { once: true });
 
-console.log('🌾 Pixel Farm RPG v15 loaded!');
+console.log('🌾 Pixel Farm RPG v16 loaded! (door bug fixed)');
 </script>
 </body>
 </html>
