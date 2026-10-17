@@ -1,54 +1,26 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Pixel Farm RPG", page_icon="🌾", layout="wide", initial_sidebar_state="collapsed")
-
-# Sembunyikan elemen Streamlit biar game-nya full
-st.markdown("""
-<style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .block-container {padding: 0 !important; max-width: 100% !important;}
-    iframe {width: 100% !important;}
-</style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="Pixel Farm RPG", page_icon="🌾", layout="wide")
+st.title("🌾 Pixel Farm RPG")
+st.caption("**WASD** jalan • **Klik** action • **1-9** tool • **H** hire • **R** army • **G** guard • **I** inventory • **B** shop • **E** interaksi")
 
 game_html = r"""
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  * { box-sizing: border-box; margin:0; padding:0; }
-  html, body { 
-    margin:0; padding:0;
-    background:#0a0a1e; 
-    font-family:'Courier New',monospace; 
-    overflow:hidden; 
-    color:#fff;
-    width:100%;
-    height:100%;
-  }
-  #gameWrap { 
-    position:relative; 
-    width:100vw; 
-    height:100vh; 
-    display:flex; 
-    justify-content:center; 
-    align-items:center;
-    overflow:hidden;
-  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#0a0a1e; font-family:'Courier New',monospace; overflow:hidden; color:#fff; }
+  
+  #gameWrap { position:relative; width:100%; height:100vh; display:flex; justify-content:center; align-items:center; background:#0a0a1e; overflow:hidden; }
+  
   canvas { 
     image-rendering:pixelated; 
     border:4px solid #2a2a3e; 
     box-shadow:0 0 40px rgba(0,255,0,0.2); 
     background:#000; 
-    cursor:crosshair;
-    max-width: 98vw;
-    max-height: 94vh;
-    width: auto;
-    height: auto;
+    cursor:crosshair; 
     display: block;
   }
 
@@ -244,7 +216,7 @@ game_html = r"""
 </head>
 <body>
 <div id="gameWrap">
-  <canvas id="game" width="1100" height="700"></canvas>
+  <canvas id="game" width="860" height="590"></canvas>
   <div id="damageFlash"></div>
   <div id="hud">
     <div class="bar"><div class="fill" id="hpFill" style="width:100%"></div><div class="label">❤️ <span id="hpText">100/100</span></div></div>
@@ -3070,4 +3042,4 @@ console.log('🌾 Pixel Farm RPG v15 loaded!');
 </html>
 """
 
-components.html(game_html, height=950, scrolling=False)
+components.html(game_html, height=700, scrolling=False)
