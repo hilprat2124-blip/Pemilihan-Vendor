@@ -2213,12 +2213,18 @@ window.addEventListener('keydown', e => {
         currentInterior = interiors[0];
         player.x = currentInterior.playerSpawn.x;
         player.y = currentInterior.playerSpawn.y;
+        // SNAP KAMERA
+        camera.x = player.x + player.w/2 - canvas.width/2;
+        camera.y = player.y + player.h/2 - canvas.height/2;
         sfxDoor();
         showToast('🚪 Masuk ke rumah', '#4a90e2');
       } else {
         currentInterior = null;
         player.x = 17.5 * TILE;
         player.y = 13 * TILE;
+        // SNAP KAMERA
+        camera.x = player.x + player.w/2 - canvas.width/2;
+        camera.y = player.y + player.h/2 - canvas.height/2;
         sfxDoor();
         showToast('🚪 Keluar rumah', '#4a90e2');
       }
